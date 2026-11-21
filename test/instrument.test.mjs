@@ -69,6 +69,26 @@ test('雙手建弦、同時放開單次提交、無意外撥音、單手可調�
   frames(4,[['a',.35,.45,true]]);frames(5,[['a',.35,.45,false]]);
   assert.ok(s.data.strings[0].a.x>initial.a.x+.1);assert.deepEqual(s.data.strings[0].b,initial.b);assert.equal(events.length,0);
 });
+test('一手持續捏住新弦，另一手撥中移動後的弦，只響一次且採用當下音高',()=>{
+  const scene=new Scene();scene.load(layout());const {g,frames,events}=actor(scene);
+  const pair=(rightX,closed,y)=>[['left',.2,y,closed],['right',rightX,.45,true]];
+  frames(4,[['left',.2,.45,false],['right',.75,.45,false]]);
+  frames(6,pair(.75,true,.45));frames(6,pair(.75,false,.45));
+  assert.equal(g.draft?.end,'b');assert.equal(scene.data.strings.length,1);
+  frames(3,[['left',.48,.38,false],['right',.65,.45,true]]);
+  frames(1,[['left',.48,.52,false],['right',.65,.45,true]]);
+  assert.equal(events.length,1);assert.equal(events[0].trackId,'left');
+  assert.equal(events[0].frequencyHz,tone(g.draft.a,g.draft.b,scene.data).hz);
+  frames(5,[['left',.48,.52,false],['right',.65,.45,false]]);
+  assert.equal(g.draft,null);assert.equal(events.length,1);
+});
+test('移動琴弦穿過靜止的手指時不觸發撥弦',()=>{
+  const s=layout();const c=new Crossing(),p=pt(.5,.5);
+  for(const [i,y] of [.42,.44,.48,.51,.56].entries()){
+    s.strings=[wire(y)];
+    assert.equal(c.sample('free',p,20*i,s,s.strings[0].id).length,0);
+  }
+});
 test('失追取消尚未提交的端點，重新進畫面不誤撥',()=>{
   const s=new Scene();s.load({...layout(),strings:[wire(.5)]});const before=structuredClone(s.data);
   const {g,frames,events}=actor(s);frames(4,[['a',.15,.5,false]]);frames(6,[['a',.15,.5,true]]);assert.ok(g.draft);
@@ -93,4 +113,3 @@ test('同一回放輸出完全相同，端點重疊時選先建立的弦',()=>{
   const replay=()=>{const c=new Crossing();return [.4,.46,.51,.6,.6,.4].flatMap((y,i)=>c.sample('hand',pt(.54,y),i*40,s))};
   assert.deepEqual(replay(),replay());
 });
-

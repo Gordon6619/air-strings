@@ -1,8 +1,8 @@
 import {Scene,Crossing,closestEnd,config,distance,projection,tone,clamp} from './core.js';
-import {Tracker,Gestures} from './gesture.js';
+import {Tracker,Gestures} from './gesture.js?v=light20';
 import {Instrument} from './audio.js?v=canon57';
 import {Camera} from './camera.js';
-import {Resonance,HandOverlay,paintString,resonanceDurationMs} from './resonance.js';
+import {Resonance,HandOverlay,paintStageString,tensionColor,resonanceDurationMs} from './resonance.js?v=light20';
 import {songs,Concert,paintConcert,introSeconds} from './concert.js?v=canon57';
 const $=id=>document.getElementById(id), canvas=$('canvas'), pen=canvas.getContext('2d');
 const scene=new Scene(),gestures=new Gestures(scene),mouseSweep=new Crossing(),audio=new Instrument();
@@ -11,6 +11,7 @@ let tracker=new Tracker(),mode='preview',draft=null,del=false,points=[],revision
 let firstCamera=true,hasEdited=false,mouseOn=false,stableAt=null,perSecond=performance.now(),draws=0,tracks=0,lastResult=-1;
 let concert=null,concertTimer=null,concertBar=-1;
 let stateMsg='',noteAt=0,lastPointer=null,activePointer=null;
+const frameIntervals=[];let lastDraw=null;
 let needsPaint=true,animationEnd=0,wasAnimating=false;
 const hits=new Resonance(),overlay=new HandOverlay(),seen=new Set(),log=[];
 const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -28,7 +29,7 @@ scene.load(chord());scene.history=[];
 function color(w){return colors[(w.createdSeq-1+colors.length)%colors.length]}
 function cancel(){draft=null;activePointer=null;gestures.reset();mouseSweep.reset();lastPointer=null;points=[];overlay.hands.clear();hits.clear();animationEnd=0;needsPaint=true}
 function changeMode(m){
-  needsPaint=true;
+  needsPaint=true;lastDraw=null;frameIntervals.length=0;
   mode=m;$('mode').textContent=({camera:'攝影機演奏',loading:'啟動中',preview:'試奏待命',concert:'名曲演奏中',mouse:'演奏中',stopped:'已停止'})[m];
   $('viewLabel').textContent=({camera:'攝影機演奏',loading:'連接攝影機',preview:'滑鼠試奏',concert:'名曲自動演奏',mouse:'滑鼠演奏',stopped:'已停止'})[m];
   $('stage').classList.toggle('concert',m==='concert');$('concertHud').hidden=m!=='concert';
@@ -90,7 +91,8 @@ function visual(w,event,delay=0){
   const t=performance.now()+delay*1000;
   hits.strike(w.id,t,event.position01,event.velocity01,event.frequencyHz,event.direction);
   animationEnd=Math.max(animationEnd,t+resonanceDurationMs);
-  const note=tone(w.a,w.b,scene.data);$('pitch').textContent=note.name;$('hz').textContent=note.hz.toFixed(1)+' Hz';noteAt=t;
+  const held=gestures.draft?.id===w.id?gestures.draft:w;
+  const note=tone(held.a,held.b,scene.data);$('pitch').textContent=note.name;$('hz').textContent=note.hz.toFixed(1)+' Hz';noteAt=t;
 }
 function perform(events){
   if(!events.length)return;
@@ -206,23 +208,34 @@ function drawFrame(now){
     if(concert)paintConcert(pen,concert,audio.ctx.currentTime-concert.start,hits,now,px,scale,reducedMotion?.matches);
     return;
   }
-  const edit=draft||gestures.draft;
+  let edit=draft||gestures.draft;
+  if(mode==='camera'&&edit?.hands){
+    edit={...edit};
+    edit.hands.forEach((id,i)=>{
+      const entry=overlay.hands.get(id),finger=gestures.fingers.get(id);
+      if(!entry||!finger?.pending)return;
+      const p=overlay.pose(entry,now),key=edit.end||(i===0?'a':'b');
+      edit[key]={x:clamp((p[4].x+p[8].x)/2),y:clamp((p[4].y+p[8].y)/2)};
+    });
+  }
+  const newest=[...hits.strings.entries()].sort((a,b)=>b[1].at(-1).time-a[1].at(-1).time).slice(0,hits.strings.size>4||stats.frameP95Ms>23?1:3).map(([id])=>id);
   function draw(w,preview=false){
     const a=px(w.a),b=px(w.b),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
-    const base=preview?'#f3e9d2':color(w),note=tone(w.a,w.b,scene.data);
+    const length=distance(w.a,w.b,scene.data.aspect);
+    const base=mode==='camera'||preview?tensionColor(length):color(w),note=tone(w.a,w.b,scene.data);
     pen.save();pen.strokeStyle=base;pen.fillStyle=base;pen.lineWidth=2.3*scale;
-    if(preview&&distance(w.a,w.b,scene.data.aspect)<config.minLength)pen.setLineDash([5*scale,4*scale]);
-    paintString(pen,a,b,base,scale,preview?[]:hits.active(w.id,now),now,reducedMotion?.matches);
+    if(preview&&!w.id&&distance(w.a,w.b,scene.data.aspect)<config.minLength)pen.setLineDash([5*scale,4*scale]);
+    paintStageString(pen,a,b,base,scale,w.id?hits.active(w.id,now):[],now,reducedMotion?.matches,newest.includes(w.id));
     pen.setLineDash([]);
     pen.lineWidth=scale;pen.globalAlpha=0.42;pen.beginPath();
-    for(let i=1;i<12;i++){
+    for(let i=1;mode!=='camera'&&i<12;i++){
       const x=a.x+dx*i/12,y=a.y+dy*i/12,tick=(i%3===0?4:2)*scale;
       pen.moveTo(x,y);pen.lineTo(x-dy/len*tick,y+dx/len*tick);
     }
     pen.stroke();pen.globalAlpha=1;
-    for(const p of [a,b]){pen.beginPath();pen.arc(p.x,p.y,5*scale,0,2*Math.PI);pen.stroke();pen.beginPath();pen.arc(p.x,p.y,2*scale,0,2*Math.PI);pen.fill()}
+
     pen.font=Math.max(11,14*scale)+'px monospace';const left=a.x<b.x?a:b;
-    pen.fillText(note.name+(note.limited?' · 限幅':''),clamp(left.x+8*scale,2,W-80*scale),Math.max(14*scale,left.y-10*scale));
+    if(mode!=='camera')pen.fillText(note.name+(note.limited?' · 限幅':''),clamp(left.x+8*scale,2,W-80*scale),Math.max(14*scale,left.y-10*scale));
     pen.restore();
   }
   for(const w of scene.data.strings)if(w.id!==edit?.id)draw(w);
@@ -230,7 +243,8 @@ function drawFrame(now){
     $('pitch').textContent=(old?tone(old.a,old.b,scene.data).name+' → ':'')+n.name;$('hz').textContent=n.hz.toFixed(1)+' Hz';noteAt=now}
   if(mode==='camera')for(const entry of overlay.hands.values()){
     const hand={points:overlay.pose(entry,now)};
-    if($('bones').checked){pen.strokeStyle='#96dbc5';pen.lineWidth=2*scale;for(const chain of joints){pen.beginPath();chain.forEach((idx,i)=>{const p=px(hand.points[idx]);if(i)pen.lineTo(p.x,p.y);else pen.moveTo(p.x,p.y)});pen.stroke()}}
+    if($('bones').checked){pen.strokeStyle='#8dea65';pen.lineWidth=1.8*scale;for(const chain of joints){pen.beginPath();chain.forEach((idx,i)=>{const p=px(hand.points[idx]);if(i)pen.lineTo(p.x,p.y);else pen.moveTo(p.x,p.y)});pen.stroke()}
+      pen.fillStyle='#f15e55';pen.beginPath();for(const point of hand.points){const p=px(point),r=2.4*scale;pen.moveTo(p.x+r,p.y);pen.arc(p.x,p.y,r,0,2*Math.PI)}pen.fill();}
     const p=px(hand.points[8]);pen.strokeStyle='#fff6d0';pen.beginPath();pen.arc(p.x,p.y,6*scale,0,2*Math.PI);pen.stroke();
   }
 }
@@ -238,11 +252,16 @@ function render(now){
   updateConcert(now);
   if(revision!==scene.revision){revision=scene.revision;layout();refresh();mouseSweep.reset();gestures.crossing.reset();needsPaint=true}
   const animating=mode==='concert'||mode==='camera'||!!draft||now<animationEnd;
-  if(needsPaint||animating||wasAnimating){drawFrame(now);draws++;needsPaint=false}
+  if(needsPaint||animating||wasAnimating){
+    if(wasAnimating&&lastDraw!==null){frameIntervals.push(now-lastDraw);if(frameIntervals.length>180)frameIntervals.shift()}
+    lastDraw=now;drawFrame(now);draws++;needsPaint=false;
+  }
   wasAnimating=animating;
   if(!draft&&!gestures.draft&&now-noteAt>2200&&$('pitch').textContent!=='—'){$('pitch').textContent='—';$('hz').textContent='等待撥弦'}
   if(now-perSecond>=1000){const seconds=(now-perSecond)/1000;stats.drawFps=Math.round(draws/seconds);stats.trackFps=Math.round(tracks/seconds);draws=tracks=0;perSecond=now;
-    $('metrics').textContent='繪圖 '+stats.drawFps+' fps ｜ 追蹤 '+stats.trackFps+' fps\n推論 '+stats.inferMs.toFixed(1)+' ms ｜ 累計 '+stats.plucks+' 音\n影格至派送 '+(stats.dispatchMs?.toFixed(1)??'—')+' ms'+(stats.camera?'\n攝影 '+stats.camera.width+' × '+stats.camera.height+' / '+stats.camera.frameRate+' fps':'');
+    const sorted=frameIntervals.slice().sort((a,b)=>a-b);
+    stats.frameP95Ms=sorted.length?sorted[Math.ceil(sorted.length*.95)-1]:null;
+    $('metrics').textContent='繪圖 '+stats.drawFps+' fps ｜ 畫格間隔 P95 '+(stats.frameP95Ms?.toFixed(1)??'—')+' ms ｜ 追蹤 '+stats.trackFps+' fps\n推論 '+stats.inferMs.toFixed(1)+' ms ｜ 累計 '+stats.plucks+' 音\n影格至派送 '+(stats.dispatchMs?.toFixed(1)??'—')+' ms'+(stats.camera?'\n攝影 '+stats.camera.width+' × '+stats.camera.height+' / '+stats.camera.frameRate+' fps':'');
   }
   requestAnimationFrame(render);
 }

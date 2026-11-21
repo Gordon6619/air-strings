@@ -66,13 +66,23 @@ export class Scene {
 export class Crossing {
   contacts=new Map                            (); seq=0;
   reset(hand        ){if(hand===undefined)this.contacts.clear();else this.contacts.delete(hand)}
-  sample(hand       ,p      ,t       ,scene          )        {
+  sample(hand       ,p      ,t       ,scene          ,movingId        )        {
     let strings=this.contacts.get(hand);if(!strings){strings=new Map();this.contacts.set(hand,strings)}
     const events        =[];
     for(const w of scene.strings){
       let c=strings.get(w.id);if(!c){c={side:0,lastHit:-Infinity};strings.set(w.id,c)}
       const {side}=projection(p,w,scene.aspect), zone=Math.abs(side)>config.band?Math.sign(side):0;
       const prev=c.previous;
+      // Measure finger travel against the current string. Moving the string
+      // across a stationary finger must not count as a pluck.
+      if(prev && w.id===movingId && t>prev.t){
+        prev.side=projection(prev.p,w,scene.aspect).side;
+        if(Math.abs(prev.side)>config.band){
+          const previousZone=Math.sign(prev.side);
+          if(previousZone!==c.side)c.hit=undefined;
+          c.side=previousZone;
+        }
+      }
       if(prev&&t<=prev.t)continue;
       if(!prev||t-prev.t>config.gapMs){c.side=zone;c.hit=undefined;}
       else {
@@ -95,4 +105,3 @@ export class Crossing {
     return events.sort((a,b)=>a.captureMs-b.captureMs);
   }
 }
-

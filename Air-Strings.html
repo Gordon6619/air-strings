@@ -30,7 +30,7 @@ main{max-width:1510px;margin:auto;padding:30px max(4.8vw,24px) 50px}.title,.sect
 <div class="group"><div class="row"><label for="vol">輸出音量</label><output id="percent">65%</output></div><input id="vol" type="range" min="0" max="100" value="65"><button id="sound">♪ 試音</button></div>
 <div class="group"><label for="tuning">調音方式</label><select id="tuning"><option value="chromatic">十二平均律 · 半音吸附</option><option value="free">自由調音 · 連續音高</option></select><label class="check"><input type="checkbox" id="bones" checked> 顯示手部骨架</label></div>
 <details id="tools"><summary>場景與診斷</summary><div class="stack"><button id="preset">載入五弦和弦</button><button id="save">匯出場景</button><button id="load">匯入場景</button><input id="file" type="file" accept=".json" hidden><div id="metrics"></div><button id="report">匯出診斷</button></div></details></aside></div></main>
-<dialog id="guide"><h2>操作指南</h2><dl><dt>名曲自動演奏</dt><dd>選曲後，舞台會拉出樂曲需要的琴弦並開始演奏。可直接換曲，或按「停止演奏」回到自己的琴弦。</dd><dt>《D 大調卡農》樂譜</dt><dd>三把小提琴與低音，共 57 小節。採用 Michael Fischer v. Mollard 於 2015 年排印的 <a href="https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=2047" target="_blank" rel="noopener">Mutopia 樂譜</a>（<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>），轉寫為互動撥弦演奏。</dd><dt>建弦</dt><dd>在空白處兩手一起捏合，拉開後放手。滑鼠可直接拖曳空白處。</dd><dt>撥奏</dt><dd>張開手，用食指橫過弦線。滑鼠移過琴弦，或按 1–8 試奏對應琴弦。</dd><dt>調音</dt><dd>捏住端點或用滑鼠拖曳端點。弦越短，下一次撥奏的音越高。</dd><dt>復原</dt><dd>點「復原」或按 Ctrl+Z。Esc 可取消拖曳或離開刪除模式。</dd></dl><button id="closeGuide" class="primary">回到演奏</button></dialog>
+<dialog id="guide"><h2>操作指南</h2><dl><dt>名曲自動演奏</dt><dd>選曲後，舞台會拉出樂曲需要的琴弦並開始演奏。可直接換曲，或按「停止演奏」回到自己的琴弦。</dd><dt>《D 大調卡農》樂譜</dt><dd>三把小提琴與低音，共 57 小節。採用 Michael Fischer v. Mollard 於 2015 年排印的 <a href="https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=2047" target="_blank" rel="noopener">Mutopia 樂譜</a>（<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>），轉寫為互動撥弦演奏。</dd><dt>建弦</dt><dd>在空白處兩手一起捏合，拉開後放手。滑鼠可直接拖曳空白處。</dd><dt>撥奏</dt><dd>張開手，用食指橫過弦線。滑鼠移過琴弦，或按 1–8 試奏對應琴弦。</dd><dt>調音</dt><dd>一手捏住端點拉長或縮短琴弦，另一手可同時用食指撥奏。滑鼠可拖曳端點。弦越短，下一次撥奏的音越高。</dd><dt>復原</dt><dd>點「復原」或按 Ctrl+Z。Esc 可取消拖曳或離開刪除模式。</dd></dl><button id="closeGuide" class="primary">回到演奏</button></dialog>
 <dialog id="confirm"><h2>清除所有琴弦？</h2><p>清場後可以用「復原」還原。</p><div class="editbar"><button id="cancelClear">取消</button><button id="yesClear" class="primary">確認清場</button></div></dialog>
 <script type="module">/* Included by the build in Air-Strings.html. Only the pinned public SDK and model are requested. */
 function portableRuntime(lock,workerSource){
@@ -164,13 +164,23 @@ class Scene {
 class Crossing {
   contacts=new Map                            (); seq=0;
   reset(hand        ){if(hand===undefined)this.contacts.clear();else this.contacts.delete(hand)}
-  sample(hand       ,p      ,t       ,scene          )        {
+  sample(hand       ,p      ,t       ,scene          ,movingId        )        {
     let strings=this.contacts.get(hand);if(!strings){strings=new Map();this.contacts.set(hand,strings)}
     const events        =[];
     for(const w of scene.strings){
       let c=strings.get(w.id);if(!c){c={side:0,lastHit:-Infinity};strings.set(w.id,c)}
       const {side}=projection(p,w,scene.aspect), zone=Math.abs(side)>config.band?Math.sign(side):0;
       const prev=c.previous;
+      // Measure finger travel against the current string. Moving the string
+      // across a stationary finger must not count as a pluck.
+      if(prev && w.id===movingId && t>prev.t){
+        prev.side=projection(prev.p,w,scene.aspect).side;
+        if(Math.abs(prev.side)>config.band){
+          const previousZone=Math.sign(prev.side);
+          if(previousZone!==c.side)c.hit=undefined;
+          c.side=previousZone;
+        }
+      }
       if(prev&&t<=prev.t)continue;
       if(!prev||t-prev.t>config.gapMs){c.side=zone;c.hit=undefined;}
       else {
@@ -193,7 +203,6 @@ class Crossing {
     return events.sort((a,b)=>a.captureMs-b.captureMs);
   }
 }
-
 
 return {config,clamp,metric,distance,center,tone,projection,closestEnd,parseScene,Scene,Crossing};
 })();
@@ -290,8 +299,25 @@ class Gestures {
       if(d.end)d[d.end]=fs[0].lastAnchor;
       else {d.a=fs[0].lastAnchor;d.b=fs[1].lastAnchor}
       if(fs.some(f=>!f.closed)){
-        this.message=this.scene.commit(d.a,d.b,d.id)?'弦已固定，伸出食指撥奏':'弦太短或數量已滿';
-        this.draft=null;this.blocked=true;
+        const original=d.id && this.scene.data.strings.find(w=>w.id===d.id);
+        const unchanged=original && distance(original.a,d.a,aspect)+distance(original.b,d.b,aspect)<0.001;
+        const saved=unchanged || this.scene.commit(d.a,d.b,d.id);
+        this.message=saved?'弦已固定，伸出食指撥奏':'弦太短或數量已滿';
+        this.draft=null;this.blocked=true;this.crossing.reset();
+        if(saved && !d.id && fs.filter(f=>f.closed).length===1){
+          const index=fs[0].closed?0:1;
+          const wire=this.scene.data.strings[this.scene.data.strings.length-1];
+          this.draft={id:wire.id,a:wire.a,b:wire.b,end:index===0?'a':'b',hands:[fs[index].id]};
+          this.message='一手拉弦，另一手用食指撥奏';
+        }
+      }else if(d.end && distance(d.a,d.b,aspect)>=0.02){
+        const data={...this.scene.data,strings:this.scene.data.strings.map(w=>w.id===d.id?{...w,a:d.a,b:d.b}:w)};
+        return active.flatMap(f=>{
+          if(f.id===d.hands[0]||f.closed||f.pending||!f.opened||f.frames<config.stableFrames){
+            this.crossing.reset(f.id);return [];
+          }
+          return this.crossing.sample(f.id,f.tip,t,data,d.id);
+        }).sort((a,b)=>a.captureMs-b.captureMs);
       }
       return [];
     }
@@ -306,7 +332,7 @@ class Gestures {
       if(f.closedAt!==t)continue;
       const end=closestEnd(f.anchor,this.scene.data);
       if(end){const wire=this.scene.data.strings.find(w=>w.id===end.id) ;
-        this.draft={a:wire.a,b:wire.b,...end,hands:[f.id]};this.crossing.reset();this.message='移動端點，放開固定音高';return [];}
+        this.draft={a:wire.a,b:wire.b,...end,hands:[f.id]};this.crossing.reset();this.message='一手拉弦，另一手用食指撥奏';return [];}
     }
     if(held.length===2&&Math.abs(held[0].closedAt-held[1].closedAt)<=config.pairMs){
       if(this.scene.data.strings.length>=config.maxStrings){this.blocked=true;this.message='已達 8 弦上限';return [];}
@@ -319,7 +345,6 @@ class Gestures {
     }).sort((a,b)=>a.captureMs-b.captureMs);
   }
 }
-
 
 return {Tracker,Gestures};
 })();
@@ -496,7 +521,7 @@ class HandOverlay {
       const last = this.hands.get(hand.id);
       const contiguous = last && now - last.time < 100;
       const from = contiguous ? this.pose(last, now) : hand.points;
-      const duration = contiguous ? clamp((now - last.time) * 0.5, 6, 20) : 0;
+      const duration = contiguous ? clamp((now - last.time) * 0.75, 6, 30) : 0;
       this.hands.set(hand.id, {from, to: hand.points, time: now, duration});
     }
     for (const id of this.hands.keys()) if (!visible.has(id)) this.hands.delete(id);
@@ -512,6 +537,85 @@ class HandOverlay {
   }
 }
 
+// Colors follow the current string length, interpolated between the three
+// colors seen as the player shortens or stretches one string.
+const spectrum=[[90,224,255],[249,241,114],[255,109,218]];
+function tensionColor(length){
+  const t=clamp((length-.10)/.86)*2,i=Math.min(1,Math.floor(t)),mix=t-i;
+  return 'rgb('+spectrum[i].map((v,k)=>Math.round(v+(spectrum[i+1][k]-v)*mix)).join(',')+')';
+}
+const embers=Array.from({length:24},(_,i)=>{
+  const angle=i*2.39996;
+  const speed=42+(i*37%101);
+  return {vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed-37,life:.28+(i*13%30)/100};
+});
+function star(ctx,x,y,r,color){
+  ctx.strokeStyle=color;ctx.lineWidth=Math.max(.65,r*.22);ctx.beginPath();
+  ctx.moveTo(x-r,y);ctx.lineTo(x+r,y);ctx.moveTo(x,y-r);ctx.lineTo(x,y+r);ctx.stroke();
+}
+function paintStageString(ctx,a,b,color,scale,strikes,now,reduced,detailed){
+  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+  if(len<.5)return;
+  const nx=-dy/len,ny=dx/len;
+  const waves=strikes.map(s=>{
+    const age=(now-s.time)/1000;
+    return {...s,age,energy:(.33+.67*s.strength)*Math.exp(-3.9*age)};
+  });
+  const energy=Math.min(1,waves.reduce((sum,w)=>sum+w.energy,0));
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='bevel';ctx.strokeStyle=color;
+  const count=energy>.025&&!reduced?clamp(Math.ceil(len/(14*scale)),12,detailed?42:18):1;
+  const heights=[];
+  ctx.beginPath();
+  for(let i=0;i<=count;i++){
+    const u=i/count;let h=0;
+    if(i>0&&i<count)for(const w of waves){
+      const wave=displacement(u,w.age,w.contact,w.rate*.70);
+      h+=wave*w.direction*w.energy*Math.min(len*.20,43*scale);
+    }
+    heights.push(h);
+    const x=a.x+dx*u+nx*h,y=a.y+dy*u+ny*h;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  if(detailed||!energy){ctx.globalAlpha=.12+.16*energy;ctx.lineWidth=(6+9*energy)*scale;ctx.stroke()}
+  ctx.globalAlpha=.50+.28*energy;ctx.lineWidth=(2.7+2.4*energy)*scale;ctx.stroke();
+  ctx.strokeStyle='#fffce8';ctx.globalAlpha=.82;ctx.lineWidth=(.85+.8*energy)*scale;ctx.stroke();
+  if(count>1&&detailed){
+    // A weaker companion wave separates from the bright core and rejoins at both anchors.
+    const w=waves[waves.length-1];ctx.strokeStyle=color;
+    for(const sign of [-1,1]){
+      ctx.beginPath();ctx.moveTo(a.x,a.y);
+      for(let i=1;i<=count;i++){
+        const u=i/count,offset=Math.sin(u*Math.PI)*Math.sin(4*Math.PI*u-w.age*22)*energy*13*scale;
+        const h=heights[i]*.46+sign*offset;
+        ctx.lineTo(a.x+dx*u+nx*h,a.y+dy*u+ny*h);
+      }
+      ctx.globalAlpha=.50*energy;ctx.lineWidth=1.3*scale;ctx.stroke();
+    }
+  }
+  if(detailed||!energy)for(const p of [a,b]){
+    ctx.globalAlpha=.28;ctx.fillStyle=color;ctx.beginPath();ctx.arc(p.x,p.y,5.5*scale,0,2*Math.PI);ctx.fill();
+    ctx.globalAlpha=.92;star(ctx,p.x,p.y,(4.5+3*energy)*scale,'#fffbd8');
+  }
+  if(!reduced&&detailed)for(const w of waves.slice(-2)){
+    if(w.age>=.58)continue;
+    const ox=a.x+dx*w.contact,oy=a.y+dy*w.contact;
+    const flash=Math.max(0,1-w.age/.17),size=(4+14*w.strength)*scale;
+    if(flash>0){
+      ctx.globalAlpha=.17*flash;ctx.fillStyle=color;ctx.beginPath();ctx.arc(ox,oy,size*1.3,0,2*Math.PI);ctx.fill();
+      ctx.globalAlpha=flash;star(ctx,ox,oy,size*flash,'#fffbe2');
+    }
+    ctx.strokeStyle='#fff2c9';ctx.lineWidth=1.35*scale;ctx.globalAlpha=Math.max(0,1-w.age/.58);
+    ctx.beginPath();
+    for(let i=0;i<8+Math.round(16*w.strength);i++){
+      const p=embers[i],t=w.age;if(t>=p.life)continue;
+      const power=(.65+.85*w.strength)*scale,tail=Math.max(0,t-.032);
+      ctx.moveTo(ox+p.vx*power*tail,oy+(p.vy*tail+240*tail*tail)*power);
+      ctx.lineTo(ox+p.vx*power*t,oy+(p.vy*t+240*t*t)*power);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 const sparks = Array.from({length: 9}, (_, i) => ({
   x: Math.cos(i * 2.39996), y: Math.sin(i * 2.39996), speed: 0.65 + ((i * 17) % 9) / 14
 }));
@@ -572,8 +676,7 @@ function paintString(ctx, a, b, color, scale, strikes, now, reduced) {
   ctx.restore();
 }
 
-
-return {resonanceDurationMs,displacement,Resonance,HandOverlay,paintString};
+return {resonanceDurationMs,displacement,Resonance,HandOverlay,tensionColor,paintStageString,paintString};
 })();
 modules.canon=(()=>{
 // Johann Pachelbel, Canon per 3 Violini e Basso.
@@ -814,7 +917,7 @@ const {Scene,Crossing,closestEnd,config,distance,projection,tone,clamp}=modules.
 const {Tracker,Gestures}=modules.gesture;
 const {Instrument}=modules.audio;
 const {Camera}=modules.camera;
-const {Resonance,HandOverlay,paintString,resonanceDurationMs}=modules.resonance;
+const {Resonance,HandOverlay,paintStageString,tensionColor,resonanceDurationMs}=modules.resonance;
 const {songs,Concert,paintConcert,introSeconds}=modules.concert;
 const $=id=>document.getElementById(id), canvas=$('canvas'), pen=canvas.getContext('2d');
 const scene=new Scene(),gestures=new Gestures(scene),mouseSweep=new Crossing(),audio=new Instrument();
@@ -823,6 +926,7 @@ let tracker=new Tracker(),mode='preview',draft=null,del=false,points=[],revision
 let firstCamera=true,hasEdited=false,mouseOn=false,stableAt=null,perSecond=performance.now(),draws=0,tracks=0,lastResult=-1;
 let concert=null,concertTimer=null,concertBar=-1;
 let stateMsg='',noteAt=0,lastPointer=null,activePointer=null;
+const frameIntervals=[];let lastDraw=null;
 let needsPaint=true,animationEnd=0,wasAnimating=false;
 const hits=new Resonance(),overlay=new HandOverlay(),seen=new Set(),log=[];
 const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -840,7 +944,7 @@ scene.load(chord());scene.history=[];
 function color(w){return colors[(w.createdSeq-1+colors.length)%colors.length]}
 function cancel(){draft=null;activePointer=null;gestures.reset();mouseSweep.reset();lastPointer=null;points=[];overlay.hands.clear();hits.clear();animationEnd=0;needsPaint=true}
 function changeMode(m){
-  needsPaint=true;
+  needsPaint=true;lastDraw=null;frameIntervals.length=0;
   mode=m;$('mode').textContent=({camera:'攝影機演奏',loading:'啟動中',preview:'試奏待命',concert:'名曲演奏中',mouse:'演奏中',stopped:'已停止'})[m];
   $('viewLabel').textContent=({camera:'攝影機演奏',loading:'連接攝影機',preview:'滑鼠試奏',concert:'名曲自動演奏',mouse:'滑鼠演奏',stopped:'已停止'})[m];
   $('stage').classList.toggle('concert',m==='concert');$('concertHud').hidden=m!=='concert';
@@ -902,7 +1006,8 @@ function visual(w,event,delay=0){
   const t=performance.now()+delay*1000;
   hits.strike(w.id,t,event.position01,event.velocity01,event.frequencyHz,event.direction);
   animationEnd=Math.max(animationEnd,t+resonanceDurationMs);
-  const note=tone(w.a,w.b,scene.data);$('pitch').textContent=note.name;$('hz').textContent=note.hz.toFixed(1)+' Hz';noteAt=t;
+  const held=gestures.draft?.id===w.id?gestures.draft:w;
+  const note=tone(held.a,held.b,scene.data);$('pitch').textContent=note.name;$('hz').textContent=note.hz.toFixed(1)+' Hz';noteAt=t;
 }
 function perform(events){
   if(!events.length)return;
@@ -1018,23 +1123,34 @@ function drawFrame(now){
     if(concert)paintConcert(pen,concert,audio.ctx.currentTime-concert.start,hits,now,px,scale,reducedMotion?.matches);
     return;
   }
-  const edit=draft||gestures.draft;
+  let edit=draft||gestures.draft;
+  if(mode==='camera'&&edit?.hands){
+    edit={...edit};
+    edit.hands.forEach((id,i)=>{
+      const entry=overlay.hands.get(id),finger=gestures.fingers.get(id);
+      if(!entry||!finger?.pending)return;
+      const p=overlay.pose(entry,now),key=edit.end||(i===0?'a':'b');
+      edit[key]={x:clamp((p[4].x+p[8].x)/2),y:clamp((p[4].y+p[8].y)/2)};
+    });
+  }
+  const newest=[...hits.strings.entries()].sort((a,b)=>b[1].at(-1).time-a[1].at(-1).time).slice(0,hits.strings.size>4||stats.frameP95Ms>23?1:3).map(([id])=>id);
   function draw(w,preview=false){
     const a=px(w.a),b=px(w.b),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
-    const base=preview?'#f3e9d2':color(w),note=tone(w.a,w.b,scene.data);
+    const length=distance(w.a,w.b,scene.data.aspect);
+    const base=mode==='camera'||preview?tensionColor(length):color(w),note=tone(w.a,w.b,scene.data);
     pen.save();pen.strokeStyle=base;pen.fillStyle=base;pen.lineWidth=2.3*scale;
-    if(preview&&distance(w.a,w.b,scene.data.aspect)<config.minLength)pen.setLineDash([5*scale,4*scale]);
-    paintString(pen,a,b,base,scale,preview?[]:hits.active(w.id,now),now,reducedMotion?.matches);
+    if(preview&&!w.id&&distance(w.a,w.b,scene.data.aspect)<config.minLength)pen.setLineDash([5*scale,4*scale]);
+    paintStageString(pen,a,b,base,scale,w.id?hits.active(w.id,now):[],now,reducedMotion?.matches,newest.includes(w.id));
     pen.setLineDash([]);
     pen.lineWidth=scale;pen.globalAlpha=0.42;pen.beginPath();
-    for(let i=1;i<12;i++){
+    for(let i=1;mode!=='camera'&&i<12;i++){
       const x=a.x+dx*i/12,y=a.y+dy*i/12,tick=(i%3===0?4:2)*scale;
       pen.moveTo(x,y);pen.lineTo(x-dy/len*tick,y+dx/len*tick);
     }
     pen.stroke();pen.globalAlpha=1;
-    for(const p of [a,b]){pen.beginPath();pen.arc(p.x,p.y,5*scale,0,2*Math.PI);pen.stroke();pen.beginPath();pen.arc(p.x,p.y,2*scale,0,2*Math.PI);pen.fill()}
+
     pen.font=Math.max(11,14*scale)+'px monospace';const left=a.x<b.x?a:b;
-    pen.fillText(note.name+(note.limited?' · 限幅':''),clamp(left.x+8*scale,2,W-80*scale),Math.max(14*scale,left.y-10*scale));
+    if(mode!=='camera')pen.fillText(note.name+(note.limited?' · 限幅':''),clamp(left.x+8*scale,2,W-80*scale),Math.max(14*scale,left.y-10*scale));
     pen.restore();
   }
   for(const w of scene.data.strings)if(w.id!==edit?.id)draw(w);
@@ -1042,7 +1158,8 @@ function drawFrame(now){
     $('pitch').textContent=(old?tone(old.a,old.b,scene.data).name+' → ':'')+n.name;$('hz').textContent=n.hz.toFixed(1)+' Hz';noteAt=now}
   if(mode==='camera')for(const entry of overlay.hands.values()){
     const hand={points:overlay.pose(entry,now)};
-    if($('bones').checked){pen.strokeStyle='#96dbc5';pen.lineWidth=2*scale;for(const chain of joints){pen.beginPath();chain.forEach((idx,i)=>{const p=px(hand.points[idx]);if(i)pen.lineTo(p.x,p.y);else pen.moveTo(p.x,p.y)});pen.stroke()}}
+    if($('bones').checked){pen.strokeStyle='#8dea65';pen.lineWidth=1.8*scale;for(const chain of joints){pen.beginPath();chain.forEach((idx,i)=>{const p=px(hand.points[idx]);if(i)pen.lineTo(p.x,p.y);else pen.moveTo(p.x,p.y)});pen.stroke()}
+      pen.fillStyle='#f15e55';pen.beginPath();for(const point of hand.points){const p=px(point),r=2.4*scale;pen.moveTo(p.x+r,p.y);pen.arc(p.x,p.y,r,0,2*Math.PI)}pen.fill();}
     const p=px(hand.points[8]);pen.strokeStyle='#fff6d0';pen.beginPath();pen.arc(p.x,p.y,6*scale,0,2*Math.PI);pen.stroke();
   }
 }
@@ -1050,11 +1167,16 @@ function render(now){
   updateConcert(now);
   if(revision!==scene.revision){revision=scene.revision;layout();refresh();mouseSweep.reset();gestures.crossing.reset();needsPaint=true}
   const animating=mode==='concert'||mode==='camera'||!!draft||now<animationEnd;
-  if(needsPaint||animating||wasAnimating){drawFrame(now);draws++;needsPaint=false}
+  if(needsPaint||animating||wasAnimating){
+    if(wasAnimating&&lastDraw!==null){frameIntervals.push(now-lastDraw);if(frameIntervals.length>180)frameIntervals.shift()}
+    lastDraw=now;drawFrame(now);draws++;needsPaint=false;
+  }
   wasAnimating=animating;
   if(!draft&&!gestures.draft&&now-noteAt>2200&&$('pitch').textContent!=='—'){$('pitch').textContent='—';$('hz').textContent='等待撥弦'}
   if(now-perSecond>=1000){const seconds=(now-perSecond)/1000;stats.drawFps=Math.round(draws/seconds);stats.trackFps=Math.round(tracks/seconds);draws=tracks=0;perSecond=now;
-    $('metrics').textContent='繪圖 '+stats.drawFps+' fps ｜ 追蹤 '+stats.trackFps+' fps\n推論 '+stats.inferMs.toFixed(1)+' ms ｜ 累計 '+stats.plucks+' 音\n影格至派送 '+(stats.dispatchMs?.toFixed(1)??'—')+' ms'+(stats.camera?'\n攝影 '+stats.camera.width+' × '+stats.camera.height+' / '+stats.camera.frameRate+' fps':'');
+    const sorted=frameIntervals.slice().sort((a,b)=>a-b);
+    stats.frameP95Ms=sorted.length?sorted[Math.ceil(sorted.length*.95)-1]:null;
+    $('metrics').textContent='繪圖 '+stats.drawFps+' fps ｜ 畫格間隔 P95 '+(stats.frameP95Ms?.toFixed(1)??'—')+' ms ｜ 追蹤 '+stats.trackFps+' fps\n推論 '+stats.inferMs.toFixed(1)+' ms ｜ 累計 '+stats.plucks+' 音\n影格至派送 '+(stats.dispatchMs?.toFixed(1)??'—')+' ms'+(stats.camera?'\n攝影 '+stats.camera.width+' × '+stats.camera.height+' / '+stats.camera.frameRate+' fps':'');
   }
   requestAnimationFrame(render);
 }

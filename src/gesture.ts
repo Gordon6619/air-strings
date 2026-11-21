@@ -89,8 +89,25 @@ export class Gestures {
       if(d.end)d[d.end]=fs[0].lastAnchor;
       else {d.a=fs[0].lastAnchor;d.b=fs[1].lastAnchor}
       if(fs.some(f=>!f.closed)){
-        this.message=this.scene.commit(d.a,d.b,d.id)?'弦已固定，伸出食指撥奏':'弦太短或數量已滿';
-        this.draft=null;this.blocked=true;
+        const original=d.id && this.scene.data.strings.find(w=>w.id===d.id);
+        const unchanged=original && distance(original.a,d.a,aspect)+distance(original.b,d.b,aspect)<0.001;
+        const saved=unchanged || this.scene.commit(d.a,d.b,d.id);
+        this.message=saved?'弦已固定，伸出食指撥奏':'弦太短或數量已滿';
+        this.draft=null;this.blocked=true;this.crossing.reset();
+        if(saved && !d.id && fs.filter(f=>f.closed).length===1){
+          const index=fs[0].closed?0:1;
+          const wire=this.scene.data.strings[this.scene.data.strings.length-1];
+          this.draft={id:wire.id,a:wire.a,b:wire.b,end:index===0?'a':'b',hands:[fs[index].id]};
+          this.message='一手拉弦，另一手用食指撥奏';
+        }
+      }else if(d.end && distance(d.a,d.b,aspect)>=0.02){
+        const data={...this.scene.data,strings:this.scene.data.strings.map(w=>w.id===d.id?{...w,a:d.a,b:d.b}:w)};
+        return active.flatMap(f=>{
+          if(f.id===d.hands[0]||f.closed||f.pending||!f.opened||f.frames<config.stableFrames){
+            this.crossing.reset(f.id);return [];
+          }
+          return this.crossing.sample(f.id,f.tip,t,data,d.id);
+        }).sort((a,b)=>a.captureMs-b.captureMs);
       }
       return [];
     }
@@ -105,7 +122,7 @@ export class Gestures {
       if(f.closedAt!==t)continue;
       const end=closestEnd(f.anchor,this.scene.data);
       if(end){const wire=this.scene.data.strings.find(w=>w.id===end.id)!;
-        this.draft={a:wire.a,b:wire.b,...end,hands:[f.id]};this.crossing.reset();this.message='移動端點，放開固定音高';return [];}
+        this.draft={a:wire.a,b:wire.b,...end,hands:[f.id]};this.crossing.reset();this.message='一手拉弦，另一手用食指撥奏';return [];}
     }
     if(held.length===2&&Math.abs(held[0].closedAt-held[1].closedAt)<=config.pairMs){
       if(this.scene.data.strings.length>=config.maxStrings){this.blocked=true;this.message='已達 8 弦上限';return [];}
@@ -118,4 +135,3 @@ export class Gestures {
     }).sort((a,b)=>a.captureMs-b.captureMs);
   }
 }
-
