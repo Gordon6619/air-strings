@@ -1,6 +1,6 @@
 import {readFile,writeFile} from 'node:fs/promises';
 const read=(path)=>readFile(new URL('../'+path,import.meta.url),'utf8');
-const names=['core','gesture','audio','camera','resonance','app'];
+const names=['core','gesture','audio','camera','resonance','concert','app'];
 const parts=[];
 for(const key of names){
   let code=await read('public/'+key+'.js');
@@ -12,6 +12,5 @@ for(const key of names){
 const worker=await read('public/tracking-worker.js'),lock=await read('camera-assets.lock.json');
 const script=await read('scripts/portable-runtime.js')+'\nwindow.airStringsPortable=portableRuntime('+lock+','+JSON.stringify(worker)+');\nconst modules={};\n'+parts.join('\n');
 const css=await read('public/style.css');
-const html=(await read('public/index.html')).replace('<link rel="stylesheet" href="style.css">',()=>'<style>'+css+'</style>').replace('<script type="module" src="app.js"></script>',()=>'<script type="module">'+script.replace(/<\/script/gi,'<\\/script')+'</script>');
+const html=(await read('public/index.html')).replace(/<link rel="stylesheet" href="style\.css(?:\?[^"]*)?">/,()=>'<style>'+css+'</style>').replace(/<script type="module" src="app\.js(?:\?[^"]*)?"><\/script>/,()=>'<script type="module">'+script.replace(/<\/script/gi,'<\\/script')+'</script>');
 await writeFile(new URL('../Air-Strings.html',import.meta.url),html);
-

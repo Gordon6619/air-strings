@@ -3,11 +3,13 @@ import {Tracker,Gestures} from './gesture.js';
 import {Instrument} from './audio.js';
 import {Camera} from './camera.js';
 import {Resonance,HandOverlay,paintString,resonanceDurationMs} from './resonance.js';
+import {songs,Concert,paintConcert,introSeconds} from './concert.js';
 const $=id=>document.getElementById(id), canvas=$('canvas'), pen=canvas.getContext('2d');
 const scene=new Scene(),gestures=new Gestures(scene),mouseSweep=new Crossing(),audio=new Instrument();
 const colors=['#ee996f','#e8ba79','#c6d793','#81c7b9','#9baed9','#cfade0','#edafbd','#dbd7b2'];
 let tracker=new Tracker(),mode='preview',draft=null,del=false,points=[],revision=-1,serial=0,run=0;
 let firstCamera=true,hasEdited=false,mouseOn=false,stableAt=null,perSecond=performance.now(),draws=0,tracks=0,lastResult=-1;
+let concert=null,concertTimer=null,concertBar=-1;
 let stateMsg='',noteAt=0,lastPointer=null,activePointer=null;
 let needsPaint=true,animationEnd=0,wasAnimating=false;
 const hits=new Resonance(),overlay=new HandOverlay(),seen=new Set(),log=[];
@@ -27,19 +29,62 @@ function color(w){return colors[(w.createdSeq-1+colors.length)%colors.length]}
 function cancel(){draft=null;activePointer=null;gestures.reset();mouseSweep.reset();lastPointer=null;points=[];overlay.hands.clear();hits.clear();animationEnd=0;needsPaint=true}
 function changeMode(m){
   needsPaint=true;
-  mode=m;$('mode').textContent=({camera:'攝影機演奏',loading:'啟動中',preview:'試奏待命',mouse:'演奏中',stopped:'已停止'})[m];
-  $('viewLabel').textContent=({camera:'攝影機演奏',loading:'連接攝影機',preview:'滑鼠試奏',mouse:'滑鼠演奏',stopped:'已停止'})[m];
-  $('lamp').classList.toggle('on',m==='camera'||m==='mouse');$('stage').classList.toggle('camera',m==='camera');
+  mode=m;$('mode').textContent=({camera:'攝影機演奏',loading:'啟動中',preview:'試奏待命',concert:'名曲演奏中',mouse:'演奏中',stopped:'已停止'})[m];
+  $('viewLabel').textContent=({camera:'攝影機演奏',loading:'連接攝影機',preview:'滑鼠試奏',concert:'名曲自動演奏',mouse:'滑鼠演奏',stopped:'已停止'})[m];
+  $('stage').classList.toggle('concert',m==='concert');$('concertHud').hidden=m!=='concert';
+  $('lamp').classList.toggle('on',m==='camera'||m==='mouse'||m==='concert');$('stage').classList.toggle('camera',m==='camera');
   $('camera').disabled=m==='loading'||m==='camera';$('stop').disabled=m==='stopped';
 }
+function leaveConcert(){
+  clearInterval(concertTimer);concertTimer=null;
+  if(!concert&&mode!=='concert')return;
+  concert=null;concertBar=-1;$('song').value='';
+  for(const id of ['delete','preset','load','save','tuning'])$(id).disabled=false;
+  refresh();
+}
 function stop(message='已停止演奏，琴弦配置已保留。'){
-  ++run;camera.stop();cancel();audio.stop();mouseOn=false;stableAt=null;stats.trackFps=0;tracks=0;lastResult=-1;
+  ++run;leaveConcert();camera.stop();cancel();audio.stop();mouseOn=false;stableAt=null;stats.trackFps=0;tracks=0;lastResult=-1;
   changeMode('stopped');status(message);
 }
 async function mouseStart(){
-  const token=++run;camera.stop();cancel();audio.stop();mouseOn=false;
+  const token=++run;leaveConcert();camera.stop();cancel();audio.stop();mouseOn=false;
   try{await audio.unlock();if(token!==run)return;mouseOn=true;changeMode('mouse');status('移動滑鼠撥弦，拖曳空白處建弦，拖曳端點調音。')}
   catch(e){if(token===run)stop('無法啟動音訊：'+e.message)}
+}
+async function startConcert(song){
+  if(!song){stop();return}
+  stop();const token=++run;
+  changeMode('concert');$('song').value=song.id;$('songTitle').textContent=song.title;
+  $('pitch').textContent='—';$('hz').textContent='準備演奏';$('songBeat').textContent='展弦中';$('songProgress').style.transform='scaleX(0)';
+  for(const id of ['delete','undo','clear','preset','load','save','tuning'])$(id).disabled=true;
+  if(del){del=false;$('delete').classList.toggle('selected',false);$('delete').setAttribute('aria-pressed','false')}
+  status(song.composer+' · '+song.bpm+' BPM');
+  try{
+    await audio.unlock();if(token!==run)return;
+    concert=new Concert(song,audio.ctx.currentTime);refresh();
+    const schedule=()=>{
+      if(!concert||token!==run)return;
+      concert.schedule(audio.ctx.currentTime-concert.start,(n,delay)=>audio.play(n.wire.frequency,n.strength,delay));
+    };
+    schedule();concertTimer=setInterval(schedule,45);
+  }catch(e){if(token===run)stop('名曲音訊無法啟動：'+e.message)}
+}
+$('song').onchange=e=>startConcert(songs.find(song=>song.id===e.target.value));
+function updateConcert(now){
+  if(!concert)return;
+  const elapsed=audio.ctx.currentTime-concert.start,{song}=concert;
+  if(elapsed>=concert.duration){stop('〈'+song.title+'〉演奏完畢，已回到你的琴弦。');return}
+  concert.advance(elapsed,(n,age)=>{
+    hits.strike(n.wire.id,now-age*1000,n.contact,n.strength,n.wire.frequency,n.direction);
+    stats.plucks++;
+    if(n.lead){$('pitch').textContent=n.wire.name;$('hz').textContent=n.wire.frequency.toFixed(1)+' Hz';noteAt=now}
+  });
+  const beat=(elapsed-introSeconds)*song.bpm/60,bar=Math.floor(beat/song.beatsPerBar);
+  if(beat>=0&&bar!==concertBar){
+    concertBar=bar;const total=Math.ceil(song.beats/song.beatsPerBar);
+    $('songBeat').textContent='第 '+Math.min(bar+1,total)+' / '+total+' 小節';
+  }
+  $('songProgress').style.transform='scaleX('+clamp(beat/song.beats)+')';
 }
 function visual(w,event,delay=0){
   const t=performance.now()+delay*1000;
@@ -62,8 +107,8 @@ function perform(events){
   }
 }
 async function manual(w){
-  if(!w||mode==='stopped'||mode==='loading')return;await audio.unlock();
-  if(mode==='stopped'||mode==='loading')return;
+  if(!w||mode==='concert'||mode==='stopped'||mode==='loading')return;await audio.unlock();
+  if(mode==='concert'||mode==='stopped'||mode==='loading')return;
   const hz=tone(w.a,w.b,scene.data).hz;
   perform([{id:'key'+(++serial),trackId:'key',stringId:w.id,captureMs:performance.now(),position01:0.5,velocity01:0.6,frequencyHz:hz}]);
 }
@@ -105,12 +150,13 @@ $('save').onclick=()=>download('air-strings.scene.json',scene.data);
 $('report').onclick=()=>download('air-strings.diagnostics.json',{configVersion:config.version,environment:navigator.userAgent,mode,stats,events:log});
 $('load').onclick=()=>$('file').click();$('file').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>100000)throw Error('場景檔案太大');const data=JSON.parse(await f.text());
   if(mode==='camera'&&Math.abs((data.aspect??16/9)-scene.data.aspect)>0.01)throw Error('請先停止攝影機再匯入不同比例的場景');
+  if(mode==='concert')return;
   scene.load(data);cancel();hasEdited=true;status('場景已載入。');
 }catch(err){status('匯入失敗：'+err.message)}finally{e.target.value=''}};
 function pos(e,r=canvas.getBoundingClientRect()){return {x:1-clamp((e.clientX-r.left)/r.width),y:clamp((e.clientY-r.top)/r.height)}}
 function pickWire(p){return scene.data.strings.map(w=>({w,...projection(p,w,scene.data.aspect)})).filter(c=>c.along>=0&&c.along<=1&&Math.abs(c.side)<0.035).sort((a,b)=>Math.abs(a.side)-Math.abs(b.side))[0]?.w}
 canvas.onpointerdown=e=>{
-  if(e.button!==0||mode==='loading'||mode==='stopped'||activePointer!==null)return;
+  if(e.button!==0||mode==='concert'||mode==='loading'||mode==='stopped'||activePointer!==null)return;
   const p=pos(e);canvas.focus();if(del){const w=pickWire(p);if(w){scene.remove(w.id);hasEdited=true}return}
   if(mode==='camera')return;
   if(!mouseOn){void audio.unlock().catch(()=>status('請按試音鍵啟用音訊。'));mouseOn=true;changeMode('mouse')}
@@ -120,7 +166,7 @@ canvas.onpointerdown=e=>{
   else{draft={a:p,b:p};status('拖曳拉出琴弦，放開固定。')}
 };
 canvas.onpointermove=e=>{
-  if(mode==='camera'||mode==='loading'||mode==='stopped'||del)return;
+  if(mode==='concert'||mode==='camera'||mode==='loading'||mode==='stopped'||del)return;
   if(activePointer!==null&&e.pointerId!==activePointer)return;
   const rect=canvas.getBoundingClientRect(),p=pos(e,rect);lastPointer=p;
   if(draft){draft[draft.end||'b']=p;return}
@@ -136,13 +182,13 @@ canvas.onpointerup=e=>{if(!draft||activePointer!==e.pointerId)return;draft[draft
 };
 canvas.onpointercancel=()=>cancel();canvas.onlostpointercapture=()=>{if(activePointer!==null)cancel()};canvas.onpointerleave=()=>{lastPointer=null;mouseSweep.reset()};
 document.addEventListener('keydown',e=>{
-  if(document.querySelector('dialog[open]')||e.target.matches('input,select,textarea'))return;
+  if(mode==='concert'||document.querySelector('dialog[open]')||e.target.matches('input,select,textarea'))return;
   if(e.key==='Escape'){setDelete(false);return}
   if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();$('undo').click();return}
   if(!e.repeat&&/^[1-8]$/.test(e.key))void manual(scene.data.strings[Number(e.key)-1]);
 });
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&(mode==='camera'||mode==='loading'||mode==='mouse'))stop('視窗已切換，按演奏方式重新開始。')});
-window.addEventListener('pagehide',()=>{camera.stop();audio.stop()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&(mode==='concert'||mode==='camera'||mode==='loading'||mode==='mouse'))stop('視窗已切換，按演奏方式重新開始。')});
+window.addEventListener('pagehide',()=>{++run;leaveConcert();camera.stop();audio.stop()});
 function layout(){
   const r=$('stage').getBoundingClientRect(),aspect=scene.data.aspect,w=Math.min(r.width,r.height*aspect),h=w/aspect;
   const plane=$('plane');plane.style.width=w+'px';plane.style.height=h+'px';
@@ -156,6 +202,10 @@ const joints=[[0,1,2,3,4],[0,5,6,7,8],[5,9,10,11,12],[9,13,14,15,16],[13,17,18,1
 function drawFrame(now){
   const W=canvas.width,H=canvas.height,scale=Math.min(W,H)/650,px=p=>({x:(1-p.x)*W,y:p.y*H});
   pen.clearRect(0,0,W,H);
+  if(mode==='concert'){
+    if(concert)paintConcert(pen,concert,audio.ctx.currentTime-concert.start,hits,now,px,scale,reducedMotion?.matches);
+    return;
+  }
   const edit=draft||gestures.draft;
   function draw(w,preview=false){
     const a=px(w.a),b=px(w.b),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
@@ -185,8 +235,9 @@ function drawFrame(now){
   }
 }
 function render(now){
+  updateConcert(now);
   if(revision!==scene.revision){revision=scene.revision;layout();refresh();mouseSweep.reset();gestures.crossing.reset();needsPaint=true}
-  const animating=mode==='camera'||!!draft||now<animationEnd;
+  const animating=mode==='concert'||mode==='camera'||!!draft||now<animationEnd;
   if(needsPaint||animating||wasAnimating){drawFrame(now);draws++;needsPaint=false}
   wasAnimating=animating;
   if(!draft&&!gestures.draft&&now-noteAt>2200&&$('pitch').textContent!=='—'){$('pitch').textContent='—';$('hz').textContent='等待撥弦'}
@@ -196,10 +247,17 @@ function render(now){
   requestAnimationFrame(render);
 }
 function refresh(){
+  if(concert){
+    $('count').textContent=concert.strings.length+' 條演奏弦';
+    $('wires').replaceChildren(...concert.strings.map(w=>{
+      const tag=document.createElement('span'),dot=document.createElement('i');
+      tag.className='concertKey';dot.style.background=w.color;tag.append(dot,w.name);return tag;
+    }));
+    return;
+  }
   $('count').textContent=scene.data.strings.length+' / 8';$('undo').disabled=!scene.history.length;
   $('clear').disabled=!scene.data.strings.length;$('tuning').value=scene.data.tuning;
   $('wires').replaceChildren(...scene.data.strings.map((w,i)=>{const b=document.createElement('button'),dot=document.createElement('i'),k=document.createElement('small');
     dot.style.background=color(w);k.textContent=String(i+1);b.append(dot,k,tone(w.a,w.b,scene.data).name);b.title='試奏第 '+(i+1)+' 弦';b.onclick=()=>manual(w);return b}));
 }
 changeMode('preview');status('點「滑鼠演奏」後，將游標掃過琴弦即可試奏。');layout();refresh();requestAnimationFrame(render);
-
