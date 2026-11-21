@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#eeeae0"><title>空中弦樂器 · Air Strings</title><link rel="stylesheet" href="style.css"></head>
+<body><header><div class="brand"><i class="mark" aria-hidden="true">≋</i><strong>Air Strings</strong></div><span class="header-right"><i class="lamp" id="lamp"></i><span id="mode">待機</span></span></header>
+<main><div class="title"><div><h1>空中弦樂器</h1><p>用雙手拉出琴弦，以指尖撥奏。</p></div><button id="guideBtn" type="button">操作指南 ↗</button></div>
+<div class="workspace"><section class="instrument"><div class="stage" id="stage">
+<div id="plane"><video id="video" muted playsinline></video><canvas id="canvas" aria-label="演奏畫布，可移動滑鼠掃弦，拖曳空白處建弦" tabindex="0"></canvas></div>
+<div class="stage-top"><span class="live"><b></b><span id="viewLabel">滑鼠試奏</span></span><button id="full" title="切換全螢幕" aria-label="切換全螢幕">⛶</button></div>
+<div class="stage-bottom"><span id="pitch">—</span><span id="hz">等待撥弦</span></div></div>
+<div class="notice"><span class="statusdot"></span><span id="status" role="status">移動滑鼠掃過琴弦即可試奏。拖曳空白處可建立新弦。</span></div>
+<div class="section-head"><h2>琴弦</h2><span id="count">0 / 8</span></div><div id="wires" class="wires"></div>
+<div class="editbar"><button id="undo">↶ 復原</button><button id="delete">刪除模式</button><button id="clear">清場</button></div></section>
+<aside><h2>演奏控制</h2>
+<div class="group"><h3>演奏方式</h3><button class="primary" id="camera">啟動攝影機</button><button class="secondary" id="mouse">滑鼠演奏</button><button id="stop" class="wide">停止演奏</button></div>
+<div class="group"><div class="row"><label for="vol">輸出音量</label><output id="percent">65%</output></div><input id="vol" type="range" min="0" max="100" value="65"><button id="sound">♪ 試音</button></div>
+<div class="group"><label for="tuning">調音方式</label><select id="tuning"><option value="chromatic">十二平均律 · 半音吸附</option><option value="free">自由調音 · 連續音高</option></select><label class="check"><input type="checkbox" id="bones" checked> 顯示手部骨架</label></div>
+<details id="tools"><summary>場景與診斷</summary><div class="stack"><button id="preset">載入五弦和弦</button><button id="save">匯出場景</button><button id="load">匯入場景</button><input id="file" type="file" accept=".json" hidden><div id="metrics"></div><button id="report">匯出診斷</button></div></details></aside></div></main>
+<dialog id="guide"><h2>操作指南</h2><dl><dt>建弦</dt><dd>在空白處兩手一起捏合，拉開後放手。滑鼠可直接拖曳空白處。</dd><dt>撥奏</dt><dd>張開手，用食指橫過弦線。滑鼠移過琴弦，或按 1–8 試奏對應琴弦。</dd><dt>調音</dt><dd>捏住端點或用滑鼠拖曳端點。弦越短，下一次撥奏的音越高。</dd><dt>復原</dt><dd>點「復原」或按 Ctrl+Z。Esc 可取消拖曳或離開刪除模式。</dd></dl><button id="closeGuide" class="primary">回到演奏</button></dialog>
+<dialog id="confirm"><h2>清除所有琴弦？</h2><p>清場後可以用「復原」還原。</p><div class="editbar"><button id="cancelClear">取消</button><button id="yesClear" class="primary">確認清場</button></div></dialog>
+<script type="module" src="app.js"></script></body></html>
+

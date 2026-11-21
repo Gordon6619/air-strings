@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#eeeae0"><title>空中弦樂器 · Air Strings</title><style>:root{color-scheme:light;--paper:#f5f1e8;--ink:#272925;--muted:#63685e;--line:#cecbbf;--red:#a63f32;--stage:#151e21;font-family:"Segoe UI","Microsoft JhengHei",sans-serif;background:var(--paper);color:var(--ink)}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button,select{color:var(--ink);border:1px solid var(--line);background:transparent;border-radius:6px;padding:9px 13px;cursor:pointer}button:hover,select:hover{border-color:#888c7f;background:#e9e6db}button:disabled{opacity:.45;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible,canvas:focus-visible,summary:focus-visible{outline:3px solid #cc715b;outline-offset:3px}
+header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);height:64px;padding:0 max(4.8vw,24px)}.brand,.header-right,.stage-top,.live,.row,.section-head,.editbar,.notice{display:flex;align-items:center}.brand{gap:12px;font-family:Georgia,serif;font-size:25px;letter-spacing:-1px}.mark{background:var(--red);color:#fff3e0;border-radius:8px;font:italic bold 29px/31px Georgia;text-align:center;width:34px;height:34px}.header-right{gap:8px;font-size:13px}.lamp,.statusdot,.live b{display:inline-block;width:7px;height:7px;border-radius:50%;background:#8a887b}.lamp.on,.statusdot{background:#678679}
+main{max-width:1510px;margin:auto;padding:30px max(4.8vw,24px) 50px}.title,.section-head,.row{display:flex;justify-content:space-between;align-items:center}.title{margin-bottom:24px}.title p{font-size:14px;color:var(--muted);margin:7px 0 0}h1,h2,h3{margin:0}h1{font-family:Georgia,"Microsoft JhengHei",serif;font-size:clamp(32px,4vw,52px);letter-spacing:.06em;line-height:1.24}h2{font-size:19px}h3,label{font-size:14px;font-weight:650}.workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,26%);gap:28px}.stage{position:relative;aspect-ratio:16/10;background:radial-gradient(ellipse at 50% 30%,#28383b,var(--stage) 72%);border-radius:12px;overflow:hidden;isolation:isolate}.stage:fullscreen{height:100%;width:100%;border-radius:0}.stage-top,.stage-bottom{position:absolute;pointer-events:none;left:17px;right:17px;z-index:2;color:#e7efde}.stage-top{top:13px;justify-content:space-between}.stage-top button{pointer-events:auto;background:#162023ab;color:#dce5db;border-color:#667771;font-size:18px;padding:2px 7px}.live{gap:8px;border-radius:20px;background:#192524b8;font-size:11px;letter-spacing:.07em;padding:5px 9px}.live b{background:#d69379}.stage-bottom{bottom:12px;display:flex;gap:8px;align-items:baseline}.stage-bottom span{background:#132020a6;border-radius:3px;padding:1px 5px}#pitch{font:24px Georgia,serif}#hz{font:11px ui-monospace,monospace;color:#d1dbcd}#plane{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);overflow:hidden}video,canvas{position:absolute;inset:0;width:100%;height:100%}video{transform:scaleX(-1);display:none}.camera video{display:block}canvas{touch-action:none;cursor:crosshair}.notice{gap:9px;font-size:13px;line-height:1.55;min-height:45px;color:var(--muted)}.statusdot{flex-shrink:0}.section-head{border-top:1px solid var(--line);padding:16px 0 10px}.section-head span,output{font:12px ui-monospace,monospace}.wires{display:flex;gap:7px;flex-wrap:wrap}.wires button{background:#fffaf0;display:flex;align-items:center;gap:7px;font:15px Georgia,serif}.wires i{width:7px;height:7px;border-radius:50%}.wires small{color:var(--muted);font:10px ui-monospace,monospace}.editbar{gap:7px;margin-top:12px;flex-wrap:wrap}.editbar button,#sound{font-size:13px}.selected,.selected:hover{background:#e3cdc4;border-color:var(--red)}aside{padding:19px 20px;border:1px solid var(--line);border-radius:10px;align-self:start;background:#fbf8f0}aside>h2{padding-bottom:13px}.group{border-top:1px solid var(--line);padding:14px 0;display:grid;gap:9px}.primary,.secondary,.wide,select{width:100%}.primary,.primary:hover{background:var(--red);color:#fff7eb;border-color:var(--red)}.primary:hover{background:#8f352d}.secondary{background:#e7e8db}.wide{padding-block:6px}input[type=range],input[type=checkbox]{accent-color:var(--red)}input[type=range]{width:100%;margin:6px 0}.check{display:flex;gap:7px;align-items:center;font-weight:400}.group #sound{justify-self:start}.stack{display:grid;gap:7px;margin-top:10px}.stack button,select{font-size:13px}summary{cursor:pointer;font-weight:650;font-size:14px}details{border-top:1px solid var(--line);padding-top:12px}#metrics{font:12px/1.65 ui-monospace,monospace;white-space:pre-line;overflow-wrap:anywhere}dialog{color:var(--ink);border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:26px;max-width:min(420px,92vw)}dialog::backdrop{background:#101a1cad}dt{font-weight:700;margin:12px 0 2px}dd{margin:0;line-height:1.6;color:var(--muted)}dialog .primary{width:auto}#guide .primary{width:100%}
+@media(max-width:820px){main{padding:22px 16px}.workspace{grid-template-columns:1fr;gap:18px}header{padding:0 16px;height:54px}.stage{aspect-ratio:4/3}.title{gap:8px}.title button{font-size:12px;white-space:nowrap}.title p{font-size:12px}aside{max-width:none}}
+
+</style></head>
+<body><header><div class="brand"><i class="mark" aria-hidden="true">≋</i><strong>Air Strings</strong></div><span class="header-right"><i class="lamp" id="lamp"></i><span id="mode">待機</span></span></header>
+<main><div class="title"><div><h1>空中弦樂器</h1><p>用雙手拉出琴弦，以指尖撥奏。</p></div><button id="guideBtn" type="button">操作指南 ↗</button></div>
+<div class="workspace"><section class="instrument"><div class="stage" id="stage">
+<div id="plane"><video id="video" muted playsinline></video><canvas id="canvas" aria-label="演奏畫布，可移動滑鼠掃弦，拖曳空白處建弦" tabindex="0"></canvas></div>
+<div class="stage-top"><span class="live"><b></b><span id="viewLabel">滑鼠試奏</span></span><button id="full" title="切換全螢幕" aria-label="切換全螢幕">⛶</button></div>
+<div class="stage-bottom"><span id="pitch">—</span><span id="hz">等待撥弦</span></div></div>
+<div class="notice"><span class="statusdot"></span><span id="status" role="status">移動滑鼠掃過琴弦即可試奏。拖曳空白處可建立新弦。</span></div>
+<div class="section-head"><h2>琴弦</h2><span id="count">0 / 8</span></div><div id="wires" class="wires"></div>
+<div class="editbar"><button id="undo">↶ 復原</button><button id="delete">刪除模式</button><button id="clear">清場</button></div></section>
+<aside><h2>演奏控制</h2>
+<div class="group"><h3>演奏方式</h3><button class="primary" id="camera">啟動攝影機</button><button class="secondary" id="mouse">滑鼠演奏</button><button id="stop" class="wide">停止演奏</button></div>
+<div class="group"><div class="row"><label for="vol">輸出音量</label><output id="percent">65%</output></div><input id="vol" type="range" min="0" max="100" value="65"><button id="sound">♪ 試音</button></div>
+<div class="group"><label for="tuning">調音方式</label><select id="tuning"><option value="chromatic">十二平均律 · 半音吸附</option><option value="free">自由調音 · 連續音高</option></select><label class="check"><input type="checkbox" id="bones" checked> 顯示手部骨架</label></div>
+<details id="tools"><summary>場景與診斷</summary><div class="stack"><button id="preset">載入五弦和弦</button><button id="save">匯出場景</button><button id="load">匯入場景</button><input id="file" type="file" accept=".json" hidden><div id="metrics"></div><button id="report">匯出診斷</button></div></details></aside></div></main>
+<dialog id="guide"><h2>操作指南</h2><dl><dt>建弦</dt><dd>在空白處兩手一起捏合，拉開後放手。滑鼠可直接拖曳空白處。</dd><dt>撥奏</dt><dd>張開手，用食指橫過弦線。滑鼠移過琴弦，或按 1–8 試奏對應琴弦。</dd><dt>調音</dt><dd>捏住端點或用滑鼠拖曳端點。弦越短，下一次撥奏的音越高。</dd><dt>復原</dt><dd>點「復原」或按 Ctrl+Z。Esc 可取消拖曳或離開刪除模式。</dd></dl><button id="closeGuide" class="primary">回到演奏</button></dialog>
+<dialog id="confirm"><h2>清除所有琴弦？</h2><p>清場後可以用「復原」還原。</p><div class="editbar"><button id="cancelClear">取消</button><button id="yesClear" class="primary">確認清場</button></div></dialog>
+<script type="module">/* Included by the build in Air-Strings.html. Only the pinned public SDK and model are requested. */
+function portableRuntime(lock,workerSource){
+  let prepared=null;
+  const bytesToHex=b=>Array.from(new Uint8Array(b),v=>v.toString(16).padStart(2,'0')).join('');
+  const required=['vision_bundle.mjs','wasm/vision_wasm_internal.js','wasm/vision_wasm_internal.wasm','wasm/vision_wasm_nosimd_internal.js','wasm/vision_wasm_nosimd_internal.wasm'];
+  async function db(){
+    return new Promise((ok,no)=>{const req=indexedDB.open('air-strings-camera-v1',1);
+      req.onupgradeneeded=()=>req.result.createObjectStore('runtime');
+      req.onsuccess=()=>ok(req.result);req.onerror=()=>no(req.error);});
+  }
+  async function cache(value){
+    const store=await db();const key=lock.sdk.version+'-'+lock.model.sha256;
+    try{return await new Promise((ok,no)=>{
+      const tx=store.transaction('runtime',value?'readwrite':'readonly');
+      const req=value?tx.objectStore('runtime').put(value,key):tx.objectStore('runtime').get(key);
+      tx.oncomplete=()=>ok(req.result);tx.onabort=tx.onerror=()=>no(tx.error);
+    })}finally{store.close()}
+  }
+  async function get(url){const r=await fetch(url,{signal:AbortSignal.timeout(120000)});if(!r.ok)throw Error('下載失敗 HTTP '+r.status);return r.arrayBuffer()}
+  async function unpack(pair){
+    const [sdk,model]=pair;
+    const sha=await crypto.subtle.digest('SHA-512',sdk), mh=await crypto.subtle.digest('SHA-256',model);
+    if(btoa(String.fromCharCode(...new Uint8Array(sha)))!==lock.sdk.sha512||bytesToHex(mh)!==lock.model.sha256)throw Error('辨識檔案完整性驗證失敗');
+    const bytes=new Uint8Array(await new Response(new Blob([sdk]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    const decoder=new TextDecoder(),files={};
+    for(let i=0;i+512<=bytes.length;){
+      const path=decoder.decode(bytes.subarray(i,i+100)).split('\0')[0];if(!path)break;
+      const size=parseInt(decoder.decode(bytes.subarray(i+124,i+136)),8);
+      if(!Number.isSafeInteger(size)||size<0||i+512+size>bytes.length)throw Error('套件格式錯誤');
+      const name=path.replace(/^package\//,'');
+      if(required.includes(name))files[name]=URL.createObjectURL(new Blob([bytes.slice(i+512,i+512+size)],{type:name.endsWith('.wasm')?'application/wasm':'text/javascript'}));
+      i+=512+Math.ceil(size/512)*512;
+    }
+    if(required.some(n=>!files[n]))throw Error('辨識套件缺少檔案');
+    files.model=URL.createObjectURL(new Blob([model]));return files;
+  }
+  async function prepare(){
+    let pair;try{pair=await cache()}catch{}
+    if(pair){try{return await unpack(pair)}catch{/* Replace an incomplete cache with verified original assets. */}}
+    try{pair=await Promise.all([get(lock.sdk.url),get(lock.model.url)])}catch{throw Error('首次啟用攝影機需能連線至 npm 與 Google。可先用滑鼠演奏，或在桌面版執行 Install-Camera.cmd。')}
+    const files=await unpack(pair);
+    try{await cache(pair)}catch{files.cacheWarning='本次可演奏，但瀏覽器未能保存離線模型。'}
+    return files;
+  }
+  const workerUrl=URL.createObjectURL(new Blob([workerSource],{type:'text/javascript'}));
+  return {workerUrl,prepare:()=>prepared??=(prepare().catch(e=>{prepared=null;throw e}))};
+}
+
+
+window.airStringsPortable=portableRuntime({
+  "sdk": {
+    "version": "0.10.21",
+    "url": "https://registry.npmjs.org/@mediapipe/tasks-vision/-/tasks-vision-0.10.21.tgz",
+    "sha512": "TuhKH+credq4zLksGbYrnvJ1aLIWMc5r0UHwzxzql4BHECJwIAoBR61ZrqwGOW6ZmSBIzU1t4VtKj8hbxFaKeA=="
+  },
+  "model": {
+    "version": "float16/1",
+    "url": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+    "sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
+  }
+}
+,"let detector;\nself.onmessage=async({data})=>{\n  if(data.type==='init'){\n    try{\n      const assets=data.assets;\n      const root=assets?null:new URL('./vendor/',self.location.href);\n      const {FilesetResolver,HandLandmarker}=await import(assets?assets['vision_bundle.mjs']:new URL('vision_bundle.mjs',root).href);\n      const kind=assets&&!(await FilesetResolver.isSimdSupported())?'nosimd_internal':'internal';\n      const files=assets?{wasmLoaderPath:assets['wasm/vision_wasm_'+kind+'.js'],wasmBinaryPath:assets['wasm/vision_wasm_'+kind+'.wasm']}:await FilesetResolver.forVisionTasks(new URL('wasm',root).href);\n      const model=assets?assets.model:new URL('hand_landmarker.task',root).href;\n      detector=await HandLandmarker.createFromOptions(files,{canvas:new OffscreenCanvas(1,1),baseOptions:{modelAssetPath:model,delegate:'CPU'},runningMode:'VIDEO',numHands:2});\n      self.postMessage({type:'ready'});\n    }catch(e){self.postMessage({type:'error',message:String(e.message||e)})}\n  }else if(data.type==='frame'){\n    const start=performance.now();\n    try{const result=detector.detectForVideo(data.bitmap,data.t);\n      self.postMessage({type:'result',seq:data.seq,t:data.t,hands:result.landmarks,inferMs:performance.now()-start});\n    }catch(e){self.postMessage({type:'error',message:String(e.message||e)})}\n    finally{data.bitmap.close()}\n  }\n};\n\n");
+const modules={};
+modules.core=(()=>{
+// Generated from src/core.ts by npm run build.
+                                         
+                                                                    
+                                                                                                                                                
+                                                                                                                                                           
+const config = Object.freeze({
+  version:1, maxStrings:8, maxVoices:16, minLength:0.18, endpointRadius:0.035,
+  pinchOn:0.30, pinchOff:0.45, pinchMs:70, releaseMs:60, pairMs:300,
+  band:0.008, minSpeed:0.12, cooldownMs:90, gapMs:100, lossMs:250, stableFrames:3,
+  minPalm:0.024, jump:0.40, ambiguous:0.055, history:30
+});
+const clamp=(v       ,lo=0,hi=1)=>Math.max(lo,Math.min(hi,v));
+const metric=(p      ,aspect       )=>({x:p.x*Math.max(aspect,1),y:p.y*Math.max(1/aspect,1)});
+const distance=(a      ,b      ,aspect       )=>{const d=metric({x:a.x-b.x,y:a.y-b.y},aspect);return Math.hypot(d.x,d.y)};
+const center=(a      ,b      )=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+function tone(a      ,b      ,scene          ){
+  const raw=scene.referenceLength*scene.referenceHz/Math.max(distance(a,b,scene.aspect),1e-8);
+  const hz=clamp(raw,110,880), midi=Math.round(69+12*Math.log2(hz/440));
+  const name=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][midi%12]+(Math.floor(midi/12)-1);
+  return {hz:scene.tuning==='free'?hz:440*2**((midi-69)/12),name,limited:raw!==hz};
+}
+function projection(p      ,w     ,aspect       ){
+  const a=metric(w.a,aspect), b=metric(w.b,aspect), q=metric(p,aspect);
+  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+  return {along:((q.x-a.x)*dx+(q.y-a.y)*dy)/(len*len),side:((q.y-a.y)*dx-(q.x-a.x)*dy)/len};
+}
+function closestEnd(p      ,scene          ){
+  let best                             =null, limit       =config.endpointRadius;
+  for(const w of scene.strings) for(const end of ['a','b']         ){
+    const d=distance(p,w[end],scene.aspect);if(d<limit){limit=d;best={id:w.id,end}}
+  }
+  return best;
+}
+const validPoint=(p      )=>p && [p.x,p.y].every(v=>Number.isFinite(v)&&v>=0&&v<=1);
+function parseScene(value    )           {
+  if(!value||value.schemaVersion!==1||!Array.isArray(value.strings)) throw Error('不支援的場景格式');
+  const out={aspect:16/9,tuning:'chromatic',referenceHz:220,referenceLength:0.5,...value}             ;
+  if(![out.aspect,out.referenceHz,out.referenceLength].every(v=>Number.isFinite(v)&&v>0)||!['chromatic','free'].includes(out.tuning)||out.strings.length>config.maxStrings)throw Error('場景設定無效');
+  const ids=new Set        ();
+  for(const w of out.strings){
+    if(!w||typeof w.id!=='string'||!w.id||ids.has(w.id)||!Number.isSafeInteger(w.createdSeq)||w.createdSeq<0||!validPoint(w.a)||!validPoint(w.b)||distance(w.a,w.b,out.aspect)<1e-6)throw Error('弦的端點或識別碼無效');
+    ids.add(w.id);
+  }
+  out.strings=structuredClone(out.strings).sort((a,b)=>a.createdSeq-b.createdSeq);
+  return out;
+}
+class Scene {
+  data          =parseScene({schemaVersion:1,strings:[]});
+  history            =[]; next=1; revision=0;
+  replace(next          ){this.history.push(this.data);if(this.history.length>config.history)this.history.shift();this.data=next;this.revision++}
+  load(v        ){this.replace(parseScene(v))}
+  undo(){const prev=this.history.pop();if(prev){this.data=prev;this.revision++}}
+  clear(){if(this.data.strings.length)this.replace({...this.data,strings:[]})}
+  remove(id       ){const ws=this.data.strings.filter(w=>w.id!==id);if(ws.length!==this.data.strings.length)this.replace({...this.data,strings:ws})}
+  commit(a      ,b      ,id        ){
+    if(!validPoint(a)||!validPoint(b)||distance(a,b,this.data.aspect)<config.minLength)return false;
+    const s=this.data.strings;
+    if(id){if(!s.some(w=>w.id===id))return false;this.replace({...this.data,strings:s.map(w=>w.id===id?{...w,a,b}:w)});}
+    else{if(s.length>=config.maxStrings)return false;while(s.some(w=>w.id==='s'+this.next))this.next++;
+      const seq=Math.max(this.next,...s.map(w=>w.createdSeq+1));this.next=seq+1;this.replace({...this.data,strings:[...s,{id:'s'+seq,createdSeq:seq,a,b}]});}
+    return true;
+  }
+}
+                                           
+                                                                                                        
+class Crossing {
+  contacts=new Map                            (); seq=0;
+  reset(hand        ){if(hand===undefined)this.contacts.clear();else this.contacts.delete(hand)}
+  sample(hand       ,p      ,t       ,scene          )        {
+    let strings=this.contacts.get(hand);if(!strings){strings=new Map();this.contacts.set(hand,strings)}
+    const events        =[];
+    for(const w of scene.strings){
+      let c=strings.get(w.id);if(!c){c={side:0,lastHit:-Infinity};strings.set(w.id,c)}
+      const {side}=projection(p,w,scene.aspect), zone=Math.abs(side)>config.band?Math.sign(side):0;
+      const prev=c.previous;
+      if(prev&&t<=prev.t)continue;
+      if(!prev||t-prev.t>config.gapMs){c.side=zone;c.hit=undefined;}
+      else {
+        if(c.side&&Math.sign(side)!==Math.sign(prev.side)&&prev.side!==side){
+          const u=prev.side/(prev.side-side);
+          const q={x:prev.p.x+u*(p.x-prev.p.x),y:prev.p.y+u*(p.y-prev.p.y)};
+          const along=projection(q,w,scene.aspect).along;
+          const speed=Math.abs(side-prev.side)*1000/(t-prev.t);
+          c.hit=along>0&&along<1&&Math.min(distance(q,w.a,scene.aspect),distance(q,w.b,scene.aspect))>config.endpointRadius&&speed>=config.minSpeed?{time:prev.t+u*(t-prev.t),along,speed}:undefined;
+        }
+        if(zone){
+          if(c.side&&zone!==c.side&&c.hit&&c.hit.time-c.lastHit>=config.cooldownMs){
+            c.lastHit=c.hit.time;events.push({type:'pluck',id:'p'+(++this.seq),stringId:w.id,trackId:hand,captureMs:c.hit.time,position01:c.hit.along,velocity01:clamp(c.hit.speed/2,0.09,1),frequencyHz:tone(w.a,w.b,scene).hz});
+          }
+          c.side=zone;c.hit=undefined;
+        }
+      }
+      c.previous={p,t,side};
+    }
+    return events.sort((a,b)=>a.captureMs-b.captureMs);
+  }
+}
+
+
+return {config,clamp,metric,distance,center,tone,projection,closestEnd,parseScene,Scene,Crossing};
+})();
+modules.gesture=(()=>{
+// Generated from src/gesture.ts by npm run build.
+const {config,clamp,center,distance,closestEnd,Scene,Crossing}=modules.core;
+                                                
+                                     
+                                                
+class Tracker {
+  tracks        =[];serial=0;
+  match(points          ,t       ,aspect       )       {
+    const palms=points.map(p=>center(p[5],p[17]));
+    this.tracks=this.tracks.filter(s=>t-s.t<=config.lossMs);
+    const scores=this.tracks.flatMap(s=>palms.map((p,i)=>{
+      const dt=Math.min(80,t-s.t);
+      const guess={x:s.p.x+dt*s.v.x,y:s.p.y+dt*s.v.y};
+      return {s,i,d:distance(guess,p,aspect)};
+    })).sort((a,b)=>a.d-b.d);
+    if(palms.length===2 && (distance(palms[0],palms[1],aspect)<config.ambiguous ||
+      this.tracks.length===2 && Math.abs(
+        scores.filter(k=>k.s===this.tracks[k.i]).reduce((a,k)=>a+k.d,0)-
+        scores.filter(k=>k.s!==this.tracks[k.i]).reduce((a,k)=>a+k.d,0))<0.025)){
+      this.tracks=[];return [];
+    }
+    const assigned=new Map              (),used=new Set        ();
+    let candidates=scores;
+    if(palms.length===2&&this.tracks.length===2){
+      const direct=scores.filter(k=>k.s===this.tracks[k.i]);
+      const swapped=scores.filter(k=>k.s!==this.tracks[k.i]);
+      const cost=pair=>pair.reduce((total,k)=>total+k.d,0);
+      candidates=cost(direct)<=cost(swapped)?direct:swapped;
+    }
+    for(const {s,i,d} of candidates)if(d<config.jump&&!used.has(s.id)&&!assigned.has(i)){assigned.set(i,s);used.add(s.id)}
+    return points.map((landmarks,i)=>{
+      const p=palms[i];let s=assigned.get(i);
+      if(!s){s={id:'h'+(++this.serial),p,v:{x:0,y:0},t};this.tracks.push(s);}
+      const dt=Math.max(1,t-s.t);s.v={x:(p.x-s.p.x)/dt,y:(p.y-s.p.y)/dt};s.p=p;s.t=t;
+      return {id:s.id,points:landmarks};
+    });
+  }
+}
+                                                                                                                                                                           
+                                                                           
+class Gestures {
+  fingers=new Map               (); crossing=new Crossing(); draft           =null;
+  blocked=true;last=-Infinity;message='請張開手掌進入取景框';
+  scene      ;
+  constructor(scene      ){this.scene=scene}
+  reset(){this.fingers.clear();this.crossing.reset();this.draft=null;this.blocked=true;this.last=-Infinity}
+  update(t       ,hands       )        {
+    if(t<=this.last)return [];
+    const aspect=this.scene.data.aspect;this.last=t;
+    const active         =[];
+    for(const {id,points} of hands){
+      const tip=points[8],thumb=points[4],palm=distance(points[5],points[17],aspect);
+      if(palm<config.minPalm)continue;
+      const ratio=distance(tip,thumb,aspect)/palm;
+      const anchor=center(tip,thumb);anchor.x=clamp(anchor.x);anchor.y=clamp(anchor.y);
+      let f=this.fingers.get(id);
+      if(f&&t-f.t>config.gapMs)this.crossing.reset(id);
+      const missed=f&&t-f.t>config.gapMs;
+      const retain=f&&missed&&t-f.t<=config.lossMs&&this.draft?.hands.includes(id);
+      if(!f||(missed&&!retain)||distance(f.tip,tip,aspect)>config.jump){
+        this.crossing.reset(id);
+        if(f&&this.draft?.hands.includes(id)){this.draft=null;this.blocked=true;}
+        f={id,tip,anchor,closed:false,candidate:null,frames:0,t,closedAt:-Infinity,opened:false,lastAnchor:anchor,pending:false};
+        this.fingers.set(id,f);
+      }
+      const change=f.closed?ratio>config.pinchOff:ratio<config.pinchOn;
+      f.pending=ratio<config.pinchOn;
+      if(!change)f.candidate=null;
+      else if(f.candidate===null)f.candidate=t;
+      else if(t-f.candidate>=(f.closed?config.releaseMs:config.pinchMs)){
+        f.closed=!f.closed;f.candidate=null;if(f.closed)f.closedAt=t;
+      }
+      if(ratio>config.pinchOff)f.opened=true;
+      f.tip=tip;f.anchor=anchor;f.t=t;f.frames++;
+      if(ratio<=config.pinchOff)f.lastAnchor=anchor;
+      active.push(f);
+    }
+    const ids=new Set(active.map(f=>f.id));
+    for(const [id,f] of this.fingers)if(!ids.has(id)){
+      this.crossing.reset(id);f.opened=false;f.frames=0;
+      if(t-f.t>config.lossMs)this.fingers.delete(id);
+    }
+    if(this.draft){
+      const d=this.draft,owners=d.hands.map(id=>active.find(f=>f.id===id));
+      if(owners.some(f=>!f)||owners.some(f=>f.frames<config.stableFrames)){
+        if(d.hands.some(id=>!this.fingers.has(id))){this.draft=null;this.blocked=true;}
+        this.message='手部遮擋，請重新張開手掌';return [];
+      }
+      const fs=owners            ;
+      if(d.end)d[d.end]=fs[0].lastAnchor;
+      else {d.a=fs[0].lastAnchor;d.b=fs[1].lastAnchor}
+      if(fs.some(f=>!f.closed)){
+        this.message=this.scene.commit(d.a,d.b,d.id)?'弦已固定，伸出食指撥奏':'弦太短或數量已滿';
+        this.draft=null;this.blocked=true;
+      }
+      return [];
+    }
+    if(!active.length){this.blocked=true;this.message='請將手掌移入取景框';return []}
+    if(this.blocked){
+      if(active.every(f=>f.frames>=config.stableFrames&&f.opened&&!f.closed&&!f.pending))this.blocked=false;
+      return [];
+    }
+    const usable=active.filter(f=>f.frames>=config.stableFrames&&f.opened);
+    const held=usable.filter(f=>f.closed);
+    for(const f of held){
+      if(f.closedAt!==t)continue;
+      const end=closestEnd(f.anchor,this.scene.data);
+      if(end){const wire=this.scene.data.strings.find(w=>w.id===end.id) ;
+        this.draft={a:wire.a,b:wire.b,...end,hands:[f.id]};this.crossing.reset();this.message='移動端點，放開固定音高';return [];}
+    }
+    if(held.length===2&&Math.abs(held[0].closedAt-held[1].closedAt)<=config.pairMs){
+      if(this.scene.data.strings.length>=config.maxStrings){this.blocked=true;this.message='已達 8 弦上限';return [];}
+      this.draft={a:held[0].anchor,b:held[1].anchor,hands:held.map(f=>f.id)};this.crossing.reset();this.message='拉開雙手，放開固定';return [];
+    }
+    if(held.some(f=>t-f.closedAt>config.pairMs)){this.blocked=true;this.message='兩手放開，再一起捏合';return []}
+    return usable.flatMap(f=>{
+      if(f.pending||f.closed){this.crossing.reset(f.id);return [];}
+      return this.crossing.sample(f.id,f.tip,t,this.scene.data);
+    }).sort((a,b)=>a.captureMs-b.captureMs);
+  }
+}
+
+
+return {Tracker,Gestures};
+})();
+modules.audio=(()=>{
+class Instrument {
+  voices=new Set(); level=0.65;
+  async unlock(){
+    if(!this.ctx){
+      this.ctx=new AudioContext({latencyHint:'interactive'});
+      this.master=this.ctx.createGain();this.master.gain.value=this.level;
+      const limiter=this.ctx.createDynamicsCompressor();
+      limiter.threshold.value=-9;limiter.ratio.value=12;
+      this.master.connect(limiter).connect(this.ctx.destination);
+      this.wave=this.ctx.createPeriodicWave(new Float32Array(7),Float32Array.of(0,1,0.44,0.24,0.11,0.05,0.02));
+    }
+    await this.ctx.resume();
+  }
+  volume(v){this.level=v;if(this.ctx)this.master.gain.setTargetAtTime(v,this.ctx.currentTime,0.015)}
+  retire(v){
+    const now=this.ctx.currentTime;v.gain.gain.cancelAndHoldAtTime(now);
+    v.gain.gain.setTargetAtTime(0,now,0.004);v.osc.stop(now+0.025);this.voices.delete(v);
+  }
+  stop(){for(const v of [...this.voices])this.retire(v)}
+  play(hz,velocity,delay=0){
+    if(!this.ctx||this.ctx.state!=='running')return;
+    const c=this.ctx,now=c.currentTime,at=now+delay,peak=0.1+velocity*0.25,decay=0.45+velocity*0.95;
+    if(this.voices.size>=16){
+      const strength=v=>v.peak*Math.exp(-6*Math.max(0,now-v.at)/v.decay);
+      this.retire([...this.voices].sort((a,b)=>strength(a)-strength(b))[0]);
+    }
+    const osc=c.createOscillator(),gain=c.createGain(),filter=c.createBiquadFilter();
+    osc.setPeriodicWave(this.wave);osc.frequency.value=hz;
+    filter.type='lowpass';filter.frequency.setValueAtTime(Math.min(14500,hz*(5+velocity*12)),at);
+    filter.frequency.exponentialRampToValueAtTime(Math.min(3800,hz*2.2),at+decay);
+    gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(peak,at+0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0002,at+decay);
+    osc.connect(filter).connect(gain).connect(this.master);
+    const voice={osc,gain,peak,decay,at};this.voices.add(voice);
+    osc.onended=()=>{this.voices.delete(voice);osc.disconnect();filter.disconnect();gain.disconnect()};
+    osc.start(at);osc.stop(at+decay+0.015);
+  }
+}
+
+
+return {Instrument};
+})();
+modules.camera=(()=>{
+class Camera {
+  constructor(video,onFrame,onError,onReady){Object.assign(this,{video,onFrame,onError,onReady});this.generation=0}
+  stop(){
+    ++this.generation;clearTimeout(this.timer);clearInterval(this.watch);
+    if(this.callback)this.video.cancelVideoFrameCallback(this.callback);
+    this.worker?.terminate();this.worker=null;this.pending?.bitmap.close();this.pending=null;
+    this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;this.video.srcObject=null;
+  }
+  async start(){
+    this.stop();const run=this.generation;const current=()=>run===this.generation;
+    const fail=msg=>{if(current())this.onError(msg)};
+    const portable=window.airStringsPortable;
+    const assets=portable?await portable.prepare():null;
+    const res=portable?null:await fetch('./vendor/ready.json',{cache:'no-store'});
+    if(res&&!res.ok){
+      if(!current())return;
+      const setup=await fetch('./prepare-camera',{method:'POST',headers:{'X-Air-Strings':'prepare'}});
+      if(!setup.ok)throw Error('無法下載手部模型。請確認網路後重試，或執行 Install-Camera.cmd；滑鼠演奏可離線使用。');
+    }
+    if(!current())return;
+    if(!navigator.mediaDevices?.getUserMedia)throw Error('請透過 localhost 或 HTTPS 開啟並允許攝影機。');
+    const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}},audio:false});
+    if(!current()){stream.getTracks().forEach(t=>t.stop());return}
+    this.stream=stream;const track=stream.getVideoTracks()[0];track.onended=()=>fail('攝影機連線中斷，請接回後重新啟動。');
+    this.video.srcObject=stream;await this.video.play();if(!current())return;
+    const worker=this.worker=new Worker(portable?.workerUrl||'./tracking-worker.js');
+    let busy=false,capturing=false,seq=0,lastInput=performance.now(),lastResult=lastInput;
+    let lastCapture=-1;
+    const send=frame=>{busy=true;worker.postMessage({type:'frame',...frame},[frame.bitmap])};
+    const capture=async(now,meta)=>{
+      if(!current())return;this.callback=this.video.requestVideoFrameCallback(capture);
+      if(capturing)return;capturing=true;
+      try{
+        const ts=Number.isFinite(meta.captureTime)?meta.captureTime:meta.presentationTime??now;
+        if(ts<=lastCapture)return;
+        lastCapture=ts;lastInput=performance.now();
+        const bitmap=await createImageBitmap(this.video);
+        if(!current()){bitmap.close();return}
+        const frame={bitmap,t:ts,seq:++seq};
+        if(busy){this.pending?.bitmap.close();this.pending=frame}else send(frame);
+      }catch(e){fail('攝影影格讀取失敗：'+e.message)}finally{capturing=false}
+    };
+    worker.onerror=e=>fail('辨識引擎無法執行：'+e.message);
+    this.timer=setTimeout(()=>fail('辨識引擎啟動逾時，請重新啟動攝影機。'),30000);
+    worker.onmessage=({data})=>{
+      if(!current())return;
+      if(data.type==='error'){fail('手部辨識失敗：'+data.message);return}
+      if(data.type==='ready'){
+        clearTimeout(this.timer);this.onReady({...track.getSettings(),width:this.video.videoWidth,height:this.video.videoHeight,cacheWarning:assets?.cacheWarning});
+        lastInput=lastResult=performance.now();
+        this.callback=this.video.requestVideoFrameCallback(capture);
+        this.watch=setInterval(()=>{const now=performance.now();if(now-lastInput>2500||now-lastResult>4000)fail('影像追蹤暫停，請重新啟動攝影機。');},500);
+      }else if(data.type==='result'){
+        busy=false;lastResult=performance.now();this.onFrame(data);
+        if(current()&&this.pending){const f=this.pending;this.pending=null;send(f)}
+      }
+    };
+    worker.postMessage({type:'init',assets});
+  }
+}
+
+
+return {Camera};
+})();
+modules.app=(()=>{
+const {Scene,Crossing,closestEnd,config,distance,projection,tone,clamp}=modules.core;
+const {Tracker,Gestures}=modules.gesture;
+const {Instrument}=modules.audio;
+const {Camera}=modules.camera;
+const $=id=>document.getElementById(id), canvas=$('canvas'), pen=canvas.getContext('2d');
+const scene=new Scene(),gestures=new Gestures(scene),mouseSweep=new Crossing(),audio=new Instrument();
+const colors=['#ee996f','#e8ba79','#c6d793','#81c7b9','#9baed9','#cfade0','#edafbd','#dbd7b2'];
+let tracker=new Tracker(),mode='preview',draft=null,del=false,points=[],revision=-1,serial=0,run=0;
+let firstCamera=true,hasEdited=false,mouseOn=false,stableAt=null,perSecond=performance.now(),draws=0,tracks=0,lastResult=-1;
+let stateMsg='',noteAt=0,lastPointer=null,activePointer=null;
+const hits=new Map(),seen=new Set(),log=[];
+const stats={drawFps:0,trackFps:0,inferMs:0,dispatchMs:null,plucks:0,camera:null};
+function status(msg){if(msg&&msg!==stateMsg){$('status').textContent=stateMsg=msg}}
+function chord(){
+  const aspect=scene.data.aspect,notes=[130.8128,164.8138,195.9977,246.9417,293.6648];
+  return {schemaVersion:1,aspect,tuning:scene.data.tuning,strings:notes.map((hz,i)=>{
+    const length=110/hz,alpha=(i-2)*0.13+0.34,dx=length*Math.cos(alpha)/Math.max(1,aspect),dy=length*Math.sin(alpha)/Math.max(1,1/aspect);
+    const cx=0.49+(i-2)*0.045,cy=0.23+i*0.132;
+    return {id:'s'+(i+1),createdSeq:i+1,a:{x:cx+dx/2,y:cy+dy/2},b:{x:cx-dx/2,y:cy-dy/2}};
+  })};
+}
+scene.load(chord());scene.history=[];
+function color(w){return colors[(w.createdSeq-1+colors.length)%colors.length]}
+function cancel(){draft=null;activePointer=null;gestures.reset();mouseSweep.reset();lastPointer=null;points=[];hits.clear()}
+function changeMode(m){
+  mode=m;$('mode').textContent=({camera:'攝影機演奏',loading:'啟動中',preview:'試奏待命',mouse:'演奏中',stopped:'已停止'})[m];
+  $('viewLabel').textContent=({camera:'攝影機演奏',loading:'連接攝影機',preview:'滑鼠試奏',mouse:'滑鼠演奏',stopped:'已停止'})[m];
+  $('lamp').classList.toggle('on',m==='camera'||m==='mouse');$('stage').classList.toggle('camera',m==='camera');
+  $('camera').disabled=m==='loading'||m==='camera';$('stop').disabled=m==='stopped';
+}
+function stop(message='已停止演奏，琴弦配置已保留。'){
+  ++run;camera.stop();cancel();audio.stop();mouseOn=false;stableAt=null;stats.trackFps=0;tracks=0;lastResult=-1;
+  changeMode('stopped');status(message);
+}
+async function mouseStart(){
+  const token=++run;camera.stop();cancel();audio.stop();mouseOn=false;
+  try{await audio.unlock();if(token!==run)return;mouseOn=true;changeMode('mouse');status('移動滑鼠撥弦，拖曳空白處建弦，拖曳端點調音。')}
+  catch(e){if(token===run)stop('無法啟動音訊：'+e.message)}
+}
+function visual(w,id,position,velocity,delay=0){
+  const t=performance.now()+delay*1000;hits.set(w.id,{t,position,velocity});
+  const note=tone(w.a,w.b,scene.data);$('pitch').textContent=note.name;$('hz').textContent=note.hz.toFixed(1)+' Hz';noteAt=t;
+}
+function perform(events){
+  if(!events.length)return;
+  const start=events[0].captureMs;
+  for(const e of events){
+    if(seen.has(e.id))continue;
+    seen.add(e.id);if(seen.size>512)seen.delete(seen.values().next().value);
+    const w=scene.data.strings.find(s=>s.id===e.stringId);if(!w)continue;
+    const delay=clamp((e.captureMs-start)/1000,0,0.04);
+    audio.play(e.frequencyHz,e.velocity01,delay);visual(w,e.id,e.position01,e.velocity01,delay);
+    stats.dispatchMs=performance.now()-e.captureMs;stats.plucks++;
+    log.push({id:e.id,string:e.stringId,input:e.trackId,captureMs:e.captureMs,dispatchMs:stats.dispatchMs,frequencyHz:e.frequencyHz});
+    if(log.length>240)log.shift();
+  }
+}
+async function manual(w){
+  if(!w||mode==='stopped'||mode==='loading')return;await audio.unlock();
+  if(mode==='stopped'||mode==='loading')return;
+  const hz=tone(w.a,w.b,scene.data).hz;
+  perform([{id:'key'+(++serial),trackId:'key',stringId:w.id,captureMs:performance.now(),position01:0.5,velocity01:0.6,frequencyHz:hz}]);
+}
+const camera=new Camera($('video'),data=>{
+  if(mode!=='camera'||data.t<=lastResult)return;
+  lastResult=data.t;points=tracker.match(data.hands,data.t,scene.data.aspect);stats.inferMs=data.inferMs;tracks++;
+  if(!del){
+    const events=gestures.update(data.t,points);perform(events.map(e=>({...e,id:'hand:'+e.id})));
+    if(points.length){stableAt??=data.t;
+      if(data.t-stableAt>=500)status(gestures.message==='請張開手掌進入取景框'?'雙手一起捏合，拉開做一條弦。':gestures.message);
+    }else{stableAt=null;status('請將雙手張開，移入畫面。')}
+  }
+},err=>stop(err),settings=>{
+  stats.camera=settings;tracker=new Tracker();lastResult=-1;
+  if(firstCamera&&!hasEdited){scene.clear();scene.history=[]}
+  firstCamera=false;scene.data={...scene.data,aspect:settings.width/settings.height};scene.revision++;
+  changeMode('camera');layout();status('請將雙手張開，移入畫面。');
+});
+$('camera').onclick=async()=>{
+  stop();const token=++run;changeMode('loading');status('正在準備手部模型與攝影機；首次使用需要下載。');
+  try{await audio.unlock();if(token===run)await camera.start()}
+  catch(e){if(token===run)stop(e.name==='NotAllowedError'?'未取得攝影機授權。可在瀏覽器允許後重試，或選「滑鼠演奏」。':e.name==='NotFoundError'?'找不到攝影機。接上攝影機後重試，或選「滑鼠演奏」。':e.message)}
+};
+$('mouse').onclick=mouseStart;$('stop').onclick=()=>stop();
+$('sound').onclick=async()=>{await audio.unlock();audio.play(220,0.55);status('試音 A3 · 220 Hz')};
+$('vol').oninput=e=>{audio.volume(e.target.value/100);$('percent').textContent=e.target.value+'%'};
+$('tuning').onchange=e=>{cancel();scene.replace({...scene.data,tuning:e.target.value});hasEdited=true};
+function setDelete(on){cancel();del=on;$('delete').classList.toggle('selected',on);$('delete').setAttribute('aria-pressed',String(on));status(on?'點選要刪除的弦，按 Esc 返回。':'已返回演奏模式。')}
+$('delete').onclick=()=>setDelete(!del);
+$('undo').onclick=()=>{cancel();scene.undo();hasEdited=true;status('已復原上一步。')};
+$('clear').onclick=()=>{cancel();$('confirm').showModal()};
+$('cancelClear').onclick=()=>$('confirm').close();$('yesClear').onclick=()=>{scene.clear();hasEdited=true;$('confirm').close();status('琴弦已清除，可從空白畫面重新建弦。')};
+$('preset').onclick=()=>{cancel();scene.load(chord());hasEdited=true;status('已載入五弦和弦。')};
+$('guideBtn').onclick=()=>$('guide').showModal();$('closeGuide').onclick=()=>$('guide').close();
+$('full').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('stage').requestFullscreen()}catch{status('目前視窗無法切換全螢幕。')}};
+function download(name,obj){const url=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)}
+$('save').onclick=()=>download('air-strings.scene.json',scene.data);
+$('report').onclick=()=>download('air-strings.diagnostics.json',{configVersion:config.version,environment:navigator.userAgent,mode,stats,events:log});
+$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>100000)throw Error('場景檔案太大');const data=JSON.parse(await f.text());
+  if(mode==='camera'&&Math.abs((data.aspect??16/9)-scene.data.aspect)>0.01)throw Error('請先停止攝影機再匯入不同比例的場景');
+  scene.load(data);cancel();hasEdited=true;status('場景已載入。');
+}catch(err){status('匯入失敗：'+err.message)}finally{e.target.value=''}};
+function pos(e){const r=canvas.getBoundingClientRect();return {x:1-clamp((e.clientX-r.left)/r.width),y:clamp((e.clientY-r.top)/r.height)}}
+function pickWire(p){return scene.data.strings.map(w=>({w,...projection(p,w,scene.data.aspect)})).filter(c=>c.along>=0&&c.along<=1&&Math.abs(c.side)<0.035).sort((a,b)=>Math.abs(a.side)-Math.abs(b.side))[0]?.w}
+canvas.onpointerdown=e=>{
+  if(e.button!==0||mode==='loading'||mode==='stopped'||activePointer!==null)return;
+  const p=pos(e);canvas.focus();if(del){const w=pickWire(p);if(w){scene.remove(w.id);hasEdited=true}return}
+  if(mode==='camera')return;
+  if(!mouseOn){void audio.unlock().catch(()=>status('請按試音鍵啟用音訊。'));mouseOn=true;changeMode('mouse')}
+  activePointer=e.pointerId;canvas.setPointerCapture(e.pointerId);mouseSweep.reset();
+  const end=closestEnd(p,scene.data);
+  if(end){const w=scene.data.strings.find(x=>x.id===end.id);draft={a:w.a,b:w.b,...end}}
+  else{draft={a:p,b:p};status('拖曳拉出琴弦，放開固定。')}
+};
+canvas.onpointermove=e=>{
+  if(mode==='camera'||mode==='loading'||mode==='stopped'||del)return;
+  if(activePointer!==null&&e.pointerId!==activePointer)return;
+  const p=pos(e);lastPointer=p;
+  if(draft){draft[draft.end||'b']=p;return}
+  if(mouseOn){const events=mouseSweep.sample('mouse',p,e.timeStamp,scene.data);
+    perform(events.map(e=>({...e,id:'mouse:'+e.id})))}
+};
+canvas.onpointerup=e=>{if(!draft||activePointer!==e.pointerId)return;draft[draft.end||'b']=pos(e);
+  const ok=scene.commit(draft.a,draft.b,draft.id);hasEdited||=ok;draft=null;activePointer=null;mouseSweep.reset();
+  status(ok?'琴弦已固定，可以撥奏。':'弦太短或已達 8 弦上限。');
+};
+canvas.onpointercancel=()=>cancel();canvas.onlostpointercapture=()=>{if(activePointer!==null)cancel()};canvas.onpointerleave=()=>{lastPointer=null;mouseSweep.reset()};
+document.addEventListener('keydown',e=>{
+  if(document.querySelector('dialog[open]')||e.target.matches('input,select,textarea'))return;
+  if(e.key==='Escape'){setDelete(false);return}
+  if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();$('undo').click();return}
+  if(!e.repeat&&/^[1-8]$/.test(e.key))void manual(scene.data.strings[Number(e.key)-1]);
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&(mode==='camera'||mode==='loading'||mode==='mouse'))stop('視窗已切換，按演奏方式重新開始。')});
+window.addEventListener('pagehide',()=>{camera.stop();audio.stop()});
+function layout(){
+  const r=$('stage').getBoundingClientRect(),aspect=scene.data.aspect,w=Math.min(r.width,r.height*aspect),h=w/aspect;
+  const plane=$('plane');plane.style.width=w+'px';plane.style.height=h+'px';
+  const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.max(1,Math.round(w*dpr));canvas.height=Math.max(1,Math.round(h*dpr));
+}
+new ResizeObserver(layout).observe($('stage'));
+const joints=[[0,1,2,3,4],[0,5,6,7,8],[5,9,10,11,12],[9,13,14,15,16],[13,17,18,19,20],[0,17]];
+function render(now){
+  const W=canvas.width,H=canvas.height,scale=Math.min(W,H)/650,px=p=>({x:(1-p.x)*W,y:p.y*H});
+  pen.clearRect(0,0,W,H);
+  if(mode!=='camera'){pen.fillStyle='#66867f52';const step=Math.max(12,Math.round(28*scale));
+    for(let x=step/2;x<W;x+=step)for(let y=step/2;y<H;y+=step)pen.fillRect(x,y,1.2*scale,1.2*scale);}
+  const edit=draft||gestures.draft;
+  function draw(w,preview=false){
+    const a=px(w.a),b=px(w.b),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
+    const hit=hits.get(w.id),age=hit?(now-hit.t)/1000:9,amp=age>=0&&age<1?Math.sin(age*72)*Math.exp(-6*age)*18*scale*hit.velocity:0;
+    const base=preview?'#f3e9d2':color(w),note=tone(w.a,w.b,scene.data);
+    pen.save();pen.strokeStyle=base;pen.fillStyle=base;pen.lineWidth=2.3*scale;
+    if(age<0.22){pen.shadowColor=base;pen.shadowBlur=12*scale}
+    if(preview&&distance(w.a,w.b,scene.data.aspect)<config.minLength)pen.setLineDash([5*scale,4*scale]);
+    pen.beginPath();pen.moveTo(a.x,a.y);
+    for(let i=1;i<=32;i++){const t=i/32,k=clamp(hit?.position??0.5,0.01,0.99),v=amp*Math.sin(Math.PI*0.5*(t<k?t/k:(1-t)/(1-k)));pen.lineTo(a.x+t*dx-dy/len*v,a.y+t*dy+dx/len*v)}
+    pen.stroke();pen.setLineDash([]);pen.shadowBlur=0;
+    for(const p of [a,b]){pen.beginPath();pen.arc(p.x,p.y,5*scale,0,2*Math.PI);pen.stroke();pen.beginPath();pen.arc(p.x,p.y,2*scale,0,2*Math.PI);pen.fill()}
+    pen.font=Math.max(11,14*scale)+'px monospace';const left=a.x<b.x?a:b;
+    pen.fillText(note.name+(note.limited?' · 限幅':''),clamp(left.x+8*scale,2,W-80*scale),Math.max(14*scale,left.y-10*scale));
+    pen.restore();
+  }
+  for(const w of scene.data.strings)if(w.id!==edit?.id)draw(w);
+  if(edit){draw({...edit,createdSeq:1},true);const n=tone(edit.a,edit.b,scene.data),old=scene.data.strings.find(w=>w.id===edit.id);
+    $('pitch').textContent=(old?tone(old.a,old.b,scene.data).name+' → ':'')+n.name;$('hz').textContent=n.hz.toFixed(1)+' Hz';noteAt=now}
+  if(mode==='camera')for(const hand of points){
+    if($('bones').checked){pen.strokeStyle='#96dbc5';pen.lineWidth=2*scale;for(const chain of joints){pen.beginPath();chain.forEach((idx,i)=>{const p=px(hand.points[idx]);if(i)pen.lineTo(p.x,p.y);else pen.moveTo(p.x,p.y)});pen.stroke()}}
+    const p=px(hand.points[8]);pen.strokeStyle='#fff6d0';pen.beginPath();pen.arc(p.x,p.y,6*scale,0,2*Math.PI);pen.stroke();
+  }
+  if(!edit&&now-noteAt>2200&&$('pitch').textContent!=='—'){$('pitch').textContent='—';$('hz').textContent='等待撥弦'}
+  if(revision!==scene.revision){revision=scene.revision;layout();refresh();mouseSweep.reset();gestures.crossing.reset()}
+  draws++;if(now-perSecond>=1000){const seconds=(now-perSecond)/1000;stats.drawFps=Math.round(draws/seconds);stats.trackFps=Math.round(tracks/seconds);draws=tracks=0;perSecond=now;
+    $('metrics').textContent='繪圖 '+stats.drawFps+' fps ｜ 追蹤 '+stats.trackFps+' fps\n推論 '+stats.inferMs.toFixed(1)+' ms ｜ 累計 '+stats.plucks+' 音\n影格至派送 '+(stats.dispatchMs?.toFixed(1)??'—')+' ms'+(stats.camera?'\n攝影 '+stats.camera.width+' × '+stats.camera.height+' / '+stats.camera.frameRate+' fps':'');
+  }
+  requestAnimationFrame(render);
+}
+function refresh(){
+  $('count').textContent=scene.data.strings.length+' / 8';$('undo').disabled=!scene.history.length;
+  $('clear').disabled=!scene.data.strings.length;$('tuning').value=scene.data.tuning;
+  $('wires').replaceChildren(...scene.data.strings.map((w,i)=>{const b=document.createElement('button'),dot=document.createElement('i'),k=document.createElement('small');
+    dot.style.background=color(w);k.textContent=String(i+1);b.append(dot,k,tone(w.a,w.b,scene.data).name);b.title='試奏第 '+(i+1)+' 弦';b.onclick=()=>manual(w);return b}));
+}
+changeMode('preview');status('點「滑鼠演奏」後，將游標掃過琴弦即可試奏。');layout();refresh();requestAnimationFrame(render);
+
+
+return {};
+})();</script></body></html>
+

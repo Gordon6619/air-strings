@@ -1,0 +1,55 @@
+name: Publish Air Strings
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm test
+      - name: Prepare and verify camera assets
+        run: npm run setup:camera
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Verify live page and camera model
+        env:
+          SITE: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          base="${SITE%/}"
+          curl -fsSL --retry 8 --retry-all-errors "$base/" -o page.html
+          grep -q 'Air Strings' page.html
+          curl -fsSL --retry 5 --retry-all-errors "$base/vendor/ready.json" -o ready.json
+          for asset in vision_bundle.mjs wasm/vision_wasm_internal.js wasm/vision_wasm_internal.wasm hand_landmarker.task; do
+            curl -fsSL --retry 5 --retry-all-errors "$base/vendor/$asset" -o downloaded
+            expected=$(jq -er --arg path "$asset" '.files[$path]' ready.json)
+            echo "$expected  downloaded" | sha256sum --check
+          done
+
