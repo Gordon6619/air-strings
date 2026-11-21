@@ -1,11 +1,11 @@
 import {readFile,writeFile} from 'node:fs/promises';
 const read=(path)=>readFile(new URL('../'+path,import.meta.url),'utf8');
-const names=['core','gesture','audio','camera','resonance','concert','app'];
+const names=['core','gesture','audio','camera','resonance','canon','concert','app'];
 const parts=[];
 for(const key of names){
   let code=await read('public/'+key+'.js');
   const exports=[...code.matchAll(/\bexport\s+(?:class|function|const)\s+(\w+)/g)].map(m=>m[1]);
-  code=code.replace(/import\s*\{([^}]+)\}\s*from\s*'\.\/(\w+)\.js';/g,(_,symbols,dep)=>'const {'+symbols+'}=modules.'+dep+';');
+  code=code.replace(/import\s*\{([^}]+)\}\s*from\s*'\.\/(\w+)\.js(?:\?[^']+)?';/g,(_,symbols,dep)=>'const {'+symbols+'}=modules.'+dep+';');
   code=code.replace(/\bexport\s+(?=class|function|const)/g,'');
   parts.push('modules.'+key+'=(()=>{\n'+code+'\nreturn {'+exports.join(',')+'};\n})();');
 }

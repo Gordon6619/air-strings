@@ -48,7 +48,9 @@ test('名曲在單檔自動建弦、發聲、換曲、自然結束與手動停�
   const choose=id=>ui.$('song').onchange({target:{value:id}});
   await choose('canon');ui.frame();assert.match(ui.$('count').textContent,/演奏弦/);
   assert.equal(ui.outputs,0);for(let i=0;i<95;i++)ui.frame();
-  assert.ok(ui.outputs>=2);assert.equal(ui.$('pitch').textContent,'F♯5');
+  assert.equal(ui.outputs,1);assert.equal(ui.$('pitch').textContent,'D3');
+  for(let i=0;i<340;i++)ui.frame();
+  assert.equal(ui.$('pitch').textContent,'F♯5');
   await choose('ode');ui.frame();
   assert.equal(ui.$('songTitle').textContent,'歡樂頌');
   const before=ui.outputs;ui.frame(600);assert.equal(ui.outputs,before);

@@ -1,3 +1,4 @@
+import {canon} from './canon.js';
 import {paintString} from './resonance.js';
 
 // Beat positions and MIDI pitches of original plucked-string arrangements.
@@ -20,17 +21,6 @@ function score(id,title,composer,bpm,beatsPerBar,bars,bass,colors) {
   events.sort((a,b)=>a.beat-b.beat || Number(a.lead)-Number(b.lead));
   return {id,title,composer,bpm,beatsPerBar,beats,events,colors};
 }
-const ground = [50,45,47,42,43,50,43,45];
-const canonBass = Array.from({length:12},(_,bar)=>{
-  const first=ground[(2*bar)%8],second=ground[(2*bar+1)%8];
-  return [[0,first,.58],[1,first+7,.36],[2,second,.54],[3,second+7,.36]];
-});
-const canon = score('canon','D 大調卡農','帕海貝爾',84,4,[
-  [[78,2],[76,2]],[[74,2],[73,2]],[[71,2],[69,2]],[[71,2],[73,2]],
-  [[74,2],[73,2]],[[71,2],[69,2]],[[67,2],[66,2]],[[67,2],[64,2]],
-  [62,66,69,67],[66,62,66,64],[62,59,62,69],[67,71,69,67],
-  [[66,2],[62,2]]
-],[...canonBass,[[0,50,.6],[2,57],[2,62]]],['#70f1dc','#71aaff','#eaa7ff']);
 const odeBars=[
   [64,64,65,67],[67,65,64,62],[60,60,62,64],[[64,1.5],[62,.5],[62,2]],
   [64,64,65,67],[67,65,64,62],[60,60,62,64],[[62,1.5],[60,.5],[60,2]],

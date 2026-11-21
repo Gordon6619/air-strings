@@ -1,9 +1,9 @@
 import {Scene,Crossing,closestEnd,config,distance,projection,tone,clamp} from './core.js';
 import {Tracker,Gestures} from './gesture.js';
-import {Instrument} from './audio.js';
+import {Instrument} from './audio.js?v=canon57';
 import {Camera} from './camera.js';
 import {Resonance,HandOverlay,paintString,resonanceDurationMs} from './resonance.js';
-import {songs,Concert,paintConcert,introSeconds} from './concert.js';
+import {songs,Concert,paintConcert,introSeconds} from './concert.js?v=canon57';
 const $=id=>document.getElementById(id), canvas=$('canvas'), pen=canvas.getContext('2d');
 const scene=new Scene(),gestures=new Gestures(scene),mouseSweep=new Crossing(),audio=new Instrument();
 const colors=['#ee996f','#e8ba79','#c6d793','#81c7b9','#9baed9','#cfade0','#edafbd','#dbd7b2'];
@@ -64,7 +64,7 @@ async function startConcert(song){
     concert=new Concert(song,audio.ctx.currentTime);refresh();
     const schedule=()=>{
       if(!concert||token!==run)return;
-      concert.schedule(audio.ctx.currentTime-concert.start,(n,delay)=>audio.play(n.wire.frequency,n.strength,delay));
+      concert.schedule(audio.ctx.currentTime-concert.start,(n,delay)=>audio.play(n.wire.frequency,n.strength,delay,n.duration===undefined?undefined:n.duration*60/song.bpm));
     };
     schedule();concertTimer=setInterval(schedule,45);
   }catch(e){if(token===run)stop('名曲音訊無法啟動：'+e.message)}

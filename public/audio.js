@@ -17,9 +17,9 @@ export class Instrument {
     v.gain.gain.setTargetAtTime(0,now,0.004);v.osc.stop(now+0.025);this.voices.delete(v);
   }
   stop(){for(const v of [...this.voices])this.retire(v)}
-  play(hz,velocity,delay=0){
+  play(hz,velocity,delay=0,noteSeconds=Infinity){
     if(!this.ctx||this.ctx.state!=='running')return;
-    const c=this.ctx,now=c.currentTime,at=now+delay,peak=0.1+velocity*0.25,decay=0.45+velocity*0.95;
+    const c=this.ctx,now=c.currentTime,at=now+delay,peak=0.1+velocity*0.25,decay=Math.min(0.45+velocity*0.95,noteSeconds+0.14);
     if(this.voices.size>=16){
       const strength=v=>v.peak*Math.exp(-6*Math.max(0,now-v.at)/v.decay);
       this.retire([...this.voices].sort((a,b)=>strength(a)-strength(b))[0]);
@@ -36,4 +36,3 @@ export class Instrument {
     osc.start(at);osc.stop(at+decay+0.015);
   }
 }
-
