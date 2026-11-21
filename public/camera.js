@@ -26,6 +26,8 @@ export class Camera {
     const worker=this.worker=new Worker(portable?.workerUrl||'./tracking-worker.js');
     let busy=false,capturing=false,seq=0,lastInput=performance.now(),lastResult=lastInput;
     let lastCapture=-1;
+    // Resize only the inference copy. Keep the displayed video at native resolution.
+    let inferenceEdge=960,averageInference=0,framesSinceChange=0;
     const send=frame=>{busy=true;worker.postMessage({type:'frame',...frame},[frame.bitmap])};
     const capture=async(now,meta)=>{
       if(!current())return;this.callback=this.video.requestVideoFrameCallback(capture);
@@ -34,7 +36,11 @@ export class Camera {
         const ts=Number.isFinite(meta.captureTime)?meta.captureTime:meta.presentationTime??now;
         if(ts<=lastCapture)return;
         lastCapture=ts;lastInput=performance.now();
-        const bitmap=await createImageBitmap(this.video);
+        const ratio=Math.min(1,inferenceEdge/Math.max(this.video.videoWidth,this.video.videoHeight));
+        const bitmap=ratio<1?await createImageBitmap(this.video,{
+          resizeWidth:Math.max(1,Math.round(this.video.videoWidth*ratio)),
+          resizeHeight:Math.max(1,Math.round(this.video.videoHeight*ratio)),resizeQuality:'low'
+        }):await createImageBitmap(this.video);
         if(!current()){bitmap.close();return}
         const frame={bitmap,t:ts,seq:++seq};
         if(busy){this.pending?.bitmap.close();this.pending=frame}else send(frame);
@@ -51,6 +57,12 @@ export class Camera {
         this.callback=this.video.requestVideoFrameCallback(capture);
         this.watch=setInterval(()=>{const now=performance.now();if(now-lastInput>2500||now-lastResult>4000)fail('影像追蹤暫停，請重新啟動攝影機。');},500);
       }else if(data.type==='result'){
+        averageInference=averageInference?0.9*averageInference+0.1*data.inferMs:data.inferMs;
+        if(++framesSinceChange>=24&&averageInference>35&&inferenceEdge>640){
+          inferenceEdge-=160;framesSinceChange=0;
+        }else if(framesSinceChange>=120&&averageInference<17&&inferenceEdge<960){
+          inferenceEdge+=160;framesSinceChange=0;
+        }
         busy=false;lastResult=performance.now();this.onFrame(data);
         if(current()&&this.pending){const f=this.pending;this.pending=null;send(f)}
       }

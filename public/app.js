@@ -2,13 +2,16 @@ import {Scene,Crossing,closestEnd,config,distance,projection,tone,clamp} from '.
 import {Tracker,Gestures} from './gesture.js';
 import {Instrument} from './audio.js';
 import {Camera} from './camera.js';
+import {Resonance,HandOverlay,paintString,resonanceDurationMs} from './resonance.js';
 const $=id=>document.getElementById(id), canvas=$('canvas'), pen=canvas.getContext('2d');
 const scene=new Scene(),gestures=new Gestures(scene),mouseSweep=new Crossing(),audio=new Instrument();
 const colors=['#ee996f','#e8ba79','#c6d793','#81c7b9','#9baed9','#cfade0','#edafbd','#dbd7b2'];
 let tracker=new Tracker(),mode='preview',draft=null,del=false,points=[],revision=-1,serial=0,run=0;
 let firstCamera=true,hasEdited=false,mouseOn=false,stableAt=null,perSecond=performance.now(),draws=0,tracks=0,lastResult=-1;
 let stateMsg='',noteAt=0,lastPointer=null,activePointer=null;
-const hits=new Map(),seen=new Set(),log=[];
+let needsPaint=true,animationEnd=0,wasAnimating=false;
+const hits=new Resonance(),overlay=new HandOverlay(),seen=new Set(),log=[];
+const reducedMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)');
 const stats={drawFps:0,trackFps:0,inferMs:0,dispatchMs:null,plucks:0,camera:null};
 function status(msg){if(msg&&msg!==stateMsg){$('status').textContent=stateMsg=msg}}
 function chord(){
@@ -21,8 +24,9 @@ function chord(){
 }
 scene.load(chord());scene.history=[];
 function color(w){return colors[(w.createdSeq-1+colors.length)%colors.length]}
-function cancel(){draft=null;activePointer=null;gestures.reset();mouseSweep.reset();lastPointer=null;points=[];hits.clear()}
+function cancel(){draft=null;activePointer=null;gestures.reset();mouseSweep.reset();lastPointer=null;points=[];overlay.hands.clear();hits.clear();animationEnd=0;needsPaint=true}
 function changeMode(m){
+  needsPaint=true;
   mode=m;$('mode').textContent=({camera:'攝影機演奏',loading:'啟動中',preview:'試奏待命',mouse:'演奏中',stopped:'已停止'})[m];
   $('viewLabel').textContent=({camera:'攝影機演奏',loading:'連接攝影機',preview:'滑鼠試奏',mouse:'滑鼠演奏',stopped:'已停止'})[m];
   $('lamp').classList.toggle('on',m==='camera'||m==='mouse');$('stage').classList.toggle('camera',m==='camera');
@@ -37,8 +41,10 @@ async function mouseStart(){
   try{await audio.unlock();if(token!==run)return;mouseOn=true;changeMode('mouse');status('移動滑鼠撥弦，拖曳空白處建弦，拖曳端點調音。')}
   catch(e){if(token===run)stop('無法啟動音訊：'+e.message)}
 }
-function visual(w,id,position,velocity,delay=0){
-  const t=performance.now()+delay*1000;hits.set(w.id,{t,position,velocity});
+function visual(w,event,delay=0){
+  const t=performance.now()+delay*1000;
+  hits.strike(w.id,t,event.position01,event.velocity01,event.frequencyHz,event.direction);
+  animationEnd=Math.max(animationEnd,t+resonanceDurationMs);
   const note=tone(w.a,w.b,scene.data);$('pitch').textContent=note.name;$('hz').textContent=note.hz.toFixed(1)+' Hz';noteAt=t;
 }
 function perform(events){
@@ -49,7 +55,7 @@ function perform(events){
     seen.add(e.id);if(seen.size>512)seen.delete(seen.values().next().value);
     const w=scene.data.strings.find(s=>s.id===e.stringId);if(!w)continue;
     const delay=clamp((e.captureMs-start)/1000,0,0.04);
-    audio.play(e.frequencyHz,e.velocity01,delay);visual(w,e.id,e.position01,e.velocity01,delay);
+    audio.play(e.frequencyHz,e.velocity01,delay);visual(w,e,delay);
     stats.dispatchMs=performance.now()-e.captureMs;stats.plucks++;
     log.push({id:e.id,string:e.stringId,input:e.trackId,captureMs:e.captureMs,dispatchMs:stats.dispatchMs,frequencyHz:e.frequencyHz});
     if(log.length>240)log.shift();
@@ -64,6 +70,7 @@ async function manual(w){
 const camera=new Camera($('video'),data=>{
   if(mode!=='camera'||data.t<=lastResult)return;
   lastResult=data.t;points=tracker.match(data.hands,data.t,scene.data.aspect);stats.inferMs=data.inferMs;tracks++;
+  overlay.update(points,performance.now());
   if(!del){
     const events=gestures.update(data.t,points);perform(events.map(e=>({...e,id:'hand:'+e.id})));
     if(points.length){stableAt??=data.t;
@@ -100,7 +107,7 @@ $('load').onclick=()=>$('file').click();$('file').onchange=async e=>{try{const f
   if(mode==='camera'&&Math.abs((data.aspect??16/9)-scene.data.aspect)>0.01)throw Error('請先停止攝影機再匯入不同比例的場景');
   scene.load(data);cancel();hasEdited=true;status('場景已載入。');
 }catch(err){status('匯入失敗：'+err.message)}finally{e.target.value=''}};
-function pos(e){const r=canvas.getBoundingClientRect();return {x:1-clamp((e.clientX-r.left)/r.width),y:clamp((e.clientY-r.top)/r.height)}}
+function pos(e,r=canvas.getBoundingClientRect()){return {x:1-clamp((e.clientX-r.left)/r.width),y:clamp((e.clientY-r.top)/r.height)}}
 function pickWire(p){return scene.data.strings.map(w=>({w,...projection(p,w,scene.data.aspect)})).filter(c=>c.along>=0&&c.along<=1&&Math.abs(c.side)<0.035).sort((a,b)=>Math.abs(a.side)-Math.abs(b.side))[0]?.w}
 canvas.onpointerdown=e=>{
   if(e.button!==0||mode==='loading'||mode==='stopped'||activePointer!==null)return;
@@ -115,9 +122,12 @@ canvas.onpointerdown=e=>{
 canvas.onpointermove=e=>{
   if(mode==='camera'||mode==='loading'||mode==='stopped'||del)return;
   if(activePointer!==null&&e.pointerId!==activePointer)return;
-  const p=pos(e);lastPointer=p;
+  const rect=canvas.getBoundingClientRect(),p=pos(e,rect);lastPointer=p;
   if(draft){draft[draft.end||'b']=p;return}
-  if(mouseOn){const events=mouseSweep.sample('mouse',p,e.timeStamp,scene.data);
+  if(mouseOn){
+    const samples=e.getCoalescedEvents?.()||[];
+    const events=samples.flatMap(sample=>mouseSweep.sample('mouse',pos(sample,rect),sample.timeStamp,scene.data));
+    events.push(...mouseSweep.sample('mouse',p,e.timeStamp,scene.data));
     perform(events.map(e=>({...e,id:'mouse:'+e.id})))}
 };
 canvas.onpointerup=e=>{if(!draft||activePointer!==e.pointerId)return;draft[draft.end||'b']=pos(e);
@@ -136,26 +146,30 @@ window.addEventListener('pagehide',()=>{camera.stop();audio.stop()});
 function layout(){
   const r=$('stage').getBoundingClientRect(),aspect=scene.data.aspect,w=Math.min(r.width,r.height*aspect),h=w/aspect;
   const plane=$('plane');plane.style.width=w+'px';plane.style.height=h+'px';
-  const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.max(1,Math.round(w*dpr));canvas.height=Math.max(1,Math.round(h*dpr));
+  const dpr=Math.min(window.devicePixelRatio||1,2,Math.sqrt(2200000/Math.max(1,w*h)));
+  const width=Math.max(1,Math.round(w*dpr)),height=Math.max(1,Math.round(h*dpr));
+  if(canvas.width!==width){canvas.width=width;needsPaint=true}
+  if(canvas.height!==height){canvas.height=height;needsPaint=true}
 }
 new ResizeObserver(layout).observe($('stage'));
 const joints=[[0,1,2,3,4],[0,5,6,7,8],[5,9,10,11,12],[9,13,14,15,16],[13,17,18,19,20],[0,17]];
-function render(now){
+function drawFrame(now){
   const W=canvas.width,H=canvas.height,scale=Math.min(W,H)/650,px=p=>({x:(1-p.x)*W,y:p.y*H});
   pen.clearRect(0,0,W,H);
-  if(mode!=='camera'){pen.fillStyle='#66867f52';const step=Math.max(12,Math.round(28*scale));
-    for(let x=step/2;x<W;x+=step)for(let y=step/2;y<H;y+=step)pen.fillRect(x,y,1.2*scale,1.2*scale);}
   const edit=draft||gestures.draft;
   function draw(w,preview=false){
     const a=px(w.a),b=px(w.b),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
-    const hit=hits.get(w.id),age=hit?(now-hit.t)/1000:9,amp=age>=0&&age<1?Math.sin(age*72)*Math.exp(-6*age)*18*scale*hit.velocity:0;
     const base=preview?'#f3e9d2':color(w),note=tone(w.a,w.b,scene.data);
     pen.save();pen.strokeStyle=base;pen.fillStyle=base;pen.lineWidth=2.3*scale;
-    if(age<0.22){pen.shadowColor=base;pen.shadowBlur=12*scale}
     if(preview&&distance(w.a,w.b,scene.data.aspect)<config.minLength)pen.setLineDash([5*scale,4*scale]);
-    pen.beginPath();pen.moveTo(a.x,a.y);
-    for(let i=1;i<=32;i++){const t=i/32,k=clamp(hit?.position??0.5,0.01,0.99),v=amp*Math.sin(Math.PI*0.5*(t<k?t/k:(1-t)/(1-k)));pen.lineTo(a.x+t*dx-dy/len*v,a.y+t*dy+dx/len*v)}
-    pen.stroke();pen.setLineDash([]);pen.shadowBlur=0;
+    paintString(pen,a,b,base,scale,preview?[]:hits.active(w.id,now),now,reducedMotion?.matches);
+    pen.setLineDash([]);
+    pen.lineWidth=scale;pen.globalAlpha=0.42;pen.beginPath();
+    for(let i=1;i<12;i++){
+      const x=a.x+dx*i/12,y=a.y+dy*i/12,tick=(i%3===0?4:2)*scale;
+      pen.moveTo(x,y);pen.lineTo(x-dy/len*tick,y+dx/len*tick);
+    }
+    pen.stroke();pen.globalAlpha=1;
     for(const p of [a,b]){pen.beginPath();pen.arc(p.x,p.y,5*scale,0,2*Math.PI);pen.stroke();pen.beginPath();pen.arc(p.x,p.y,2*scale,0,2*Math.PI);pen.fill()}
     pen.font=Math.max(11,14*scale)+'px monospace';const left=a.x<b.x?a:b;
     pen.fillText(note.name+(note.limited?' · 限幅':''),clamp(left.x+8*scale,2,W-80*scale),Math.max(14*scale,left.y-10*scale));
@@ -164,13 +178,19 @@ function render(now){
   for(const w of scene.data.strings)if(w.id!==edit?.id)draw(w);
   if(edit){draw({...edit,createdSeq:1},true);const n=tone(edit.a,edit.b,scene.data),old=scene.data.strings.find(w=>w.id===edit.id);
     $('pitch').textContent=(old?tone(old.a,old.b,scene.data).name+' → ':'')+n.name;$('hz').textContent=n.hz.toFixed(1)+' Hz';noteAt=now}
-  if(mode==='camera')for(const hand of points){
+  if(mode==='camera')for(const entry of overlay.hands.values()){
+    const hand={points:overlay.pose(entry,now)};
     if($('bones').checked){pen.strokeStyle='#96dbc5';pen.lineWidth=2*scale;for(const chain of joints){pen.beginPath();chain.forEach((idx,i)=>{const p=px(hand.points[idx]);if(i)pen.lineTo(p.x,p.y);else pen.moveTo(p.x,p.y)});pen.stroke()}}
     const p=px(hand.points[8]);pen.strokeStyle='#fff6d0';pen.beginPath();pen.arc(p.x,p.y,6*scale,0,2*Math.PI);pen.stroke();
   }
-  if(!edit&&now-noteAt>2200&&$('pitch').textContent!=='—'){$('pitch').textContent='—';$('hz').textContent='等待撥弦'}
-  if(revision!==scene.revision){revision=scene.revision;layout();refresh();mouseSweep.reset();gestures.crossing.reset()}
-  draws++;if(now-perSecond>=1000){const seconds=(now-perSecond)/1000;stats.drawFps=Math.round(draws/seconds);stats.trackFps=Math.round(tracks/seconds);draws=tracks=0;perSecond=now;
+}
+function render(now){
+  if(revision!==scene.revision){revision=scene.revision;layout();refresh();mouseSweep.reset();gestures.crossing.reset();needsPaint=true}
+  const animating=mode==='camera'||!!draft||now<animationEnd;
+  if(needsPaint||animating||wasAnimating){drawFrame(now);draws++;needsPaint=false}
+  wasAnimating=animating;
+  if(!draft&&!gestures.draft&&now-noteAt>2200&&$('pitch').textContent!=='—'){$('pitch').textContent='—';$('hz').textContent='等待撥弦'}
+  if(now-perSecond>=1000){const seconds=(now-perSecond)/1000;stats.drawFps=Math.round(draws/seconds);stats.trackFps=Math.round(tracks/seconds);draws=tracks=0;perSecond=now;
     $('metrics').textContent='繪圖 '+stats.drawFps+' fps ｜ 追蹤 '+stats.trackFps+' fps\n推論 '+stats.inferMs.toFixed(1)+' ms ｜ 累計 '+stats.plucks+' 音\n影格至派送 '+(stats.dispatchMs?.toFixed(1)??'—')+' ms'+(stats.camera?'\n攝影 '+stats.camera.width+' × '+stats.camera.height+' / '+stats.camera.frameRate+' fps':'');
   }
   requestAnimationFrame(render);

@@ -1,6 +1,6 @@
 import {readFile,writeFile} from 'node:fs/promises';
 const read=(path)=>readFile(new URL('../'+path,import.meta.url),'utf8');
-const names=['core','gesture','audio','camera','app'];
+const names=['core','gesture','audio','camera','resonance','app'];
 const parts=[];
 for(const key of names){
   let code=await read('public/'+key+'.js');

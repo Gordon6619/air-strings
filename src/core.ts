@@ -1,7 +1,7 @@
 export type Point = {x:number; y:number};
 export type Wire = {id:string; a:Point; b:Point; createdSeq:number};
 export type SceneData = {schemaVersion:1; aspect:number; tuning:'chromatic'|'free'; referenceLength:number; referenceHz:number; strings:Wire[]};
-export type Pluck = {type:'pluck'; id:string; stringId:string; trackId:string; captureMs:number; position01:number; velocity01:number; frequencyHz:number};
+export type Pluck = {type:'pluck'; id:string; stringId:string; trackId:string; captureMs:number; position01:number; velocity01:number; frequencyHz:number; direction:number};
 export const config = Object.freeze({
   version:1, maxStrings:8, maxVoices:16, minLength:0.18, endpointRadius:0.035,
   pinchOn:0.30, pinchOff:0.45, pinchMs:70, releaseMs:60, pairMs:300,
@@ -84,7 +84,7 @@ export class Crossing {
         }
         if(zone){
           if(c.side&&zone!==c.side&&c.hit&&c.hit.time-c.lastHit>=config.cooldownMs){
-            c.lastHit=c.hit.time;events.push({type:'pluck',id:'p'+(++this.seq),stringId:w.id,trackId:hand,captureMs:c.hit.time,position01:c.hit.along,velocity01:clamp(c.hit.speed/2,0.09,1),frequencyHz:tone(w.a,w.b,scene).hz});
+            c.lastHit=c.hit.time;events.push({type:'pluck',id:'p'+(++this.seq),stringId:w.id,trackId:hand,captureMs:c.hit.time,position01:c.hit.along,velocity01:clamp(c.hit.speed/2,0.09,1),frequencyHz:tone(w.a,w.b,scene).hz,direction:-zone});
           }
           c.side=zone;c.hit=undefined;
         }
