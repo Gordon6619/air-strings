@@ -1,5 +1,5 @@
-import {config,clamp,center,distance,closestEnd,Scene,Crossing} from './core.js';
-import type {Point,Wire,Pluck} from './core.js';
+import {config,clamp,center,distance,closestEnd,projection,tone,Scene,Crossing} from './core.js';
+import type {Point,Wire,Pluck,SceneData} from './core.js';
 type Hand={id:string;points:Point[]};
 type Track={id:string;p:Point;v:Point;t:number};
 export class Tracker {
@@ -35,7 +35,8 @@ export class Tracker {
     });
   }
 }
-type Finger={id:string;tip:Point;anchor:Point;closed:boolean;candidate:number|null;frames:number;t:number;closedAt:number;opened:boolean;lastAnchor:Point;pending:boolean};
+type Grip={wire:string;along:number;start:Point;pull:number};
+type Finger={id:string;thumb:Point;grip:Grip|null;played:Map<string,number>;tip:Point;anchor:Point;closed:boolean;candidate:number|null;frames:number;t:number;closedAt:number;opened:boolean;lastAnchor:Point;pending:boolean};
 export type Draft={a:Point;b:Point;id?:string;end?:'a'|'b';hands:string[]};
 export class Gestures {
   fingers=new Map<string,Finger>(); crossing=new Crossing(); draft:Draft|null=null;
@@ -43,40 +44,84 @@ export class Gestures {
   scene:Scene;
   constructor(scene:Scene){this.scene=scene}
   reset(){this.fingers.clear();this.crossing.reset();this.draft=null;this.blocked=true;this.last=-Infinity}
+  resetSweep(id:string){this.crossing.reset(id);this.crossing.reset(id+':thumb')}
+  catchString(f:Finger,data:SceneData){
+    if(closestEnd(f.anchor,data))return;
+    let nearest=.035;
+    for(const w of data.strings){
+      const p=projection(f.anchor,w,data.aspect);
+      if(p.along<=0||p.along>=1||Math.abs(p.side)>=nearest)continue;
+      nearest=Math.abs(p.side);
+      f.grip={wire:w.id,along:p.along,start:f.anchor,pull:0};
+    }
+  }
+  playFingers(f:Finger,t:number,data:SceneData,movingId?:string):Pluck[]{
+    if(!f.opened||f.frames<config.stableFrames)return [];
+    if(movingId && f.closedAt===t)this.catchString(f,data);
+    const grip=f.grip;
+    if(grip){
+      const w=data.strings.find(s=>s.id===grip.wire);
+      if(!w){f.grip=null;return []}
+      grip.pull=clamp(projection(f.lastAnchor,w,data.aspect).side-projection(grip.start,w,data.aspect).side,-.20,.20);
+      if(f.closed){this.message='已捏住弦身，拉向側邊後鬆開兩指';return []}
+      f.grip=null;this.resetSweep(f.id);this.message='拇指或食指劃過琴弦，或捏住弦身再撥放';
+      if(Math.abs(grip.pull)<.012)return [];
+      f.played.set(w.id,t);
+      return [{type:'pluck',id:'release'+(++this.crossing.seq),trackId:f.id,stringId:w.id,captureMs:t,
+        position01:grip.along,velocity01:clamp(Math.abs(grip.pull)/.12,.12,1),
+        direction:-Math.sign(grip.pull),frequencyHz:tone(w.a,w.b,data).hz}];
+    }
+    if(f.closed||f.pending||f.candidate!==null){this.resetSweep(f.id);return []}
+    const hits=this.crossing.sample(f.id,f.tip,t,data,movingId)
+      .concat(this.crossing.sample(f.id+':thumb',f.thumb,t,data,movingId))
+      .sort((a,b)=>a.captureMs-b.captureMs);
+    return hits.filter(hit=>{
+      const last=f.played.get(hit.stringId)??-Infinity;
+      if(hit.captureMs-last<config.cooldownMs)return false;
+      f.played.set(hit.stringId,hit.captureMs);return true;
+    });
+  }
   update(t:number,hands:Hand[]):Pluck[]{
     if(t<=this.last)return [];
     const aspect=this.scene.data.aspect;this.last=t;
     const active:Finger[]=[];
     for(const {id,points} of hands){
-      const tip=points[8],thumb=points[4],palm=distance(points[5],points[17],aspect);
+      const tip=points[8],thumb=points[4],palm=Math.max(distance(points[5],points[17],aspect),.65*distance(points[0],points[9],aspect));
       if(palm<config.minPalm)continue;
       const ratio=distance(tip,thumb,aspect)/palm;
       const anchor=center(tip,thumb);anchor.x=clamp(anchor.x);anchor.y=clamp(anchor.y);
       let f=this.fingers.get(id);
-      if(f&&t-f.t>config.gapMs)this.crossing.reset(id);
+      if(f&&t-f.t>config.gapMs){this.resetSweep(id);f.grip=null;f.candidate=null}
       const missed=f&&t-f.t>config.gapMs;
       const retain=f&&missed&&t-f.t<=config.lossMs&&this.draft?.hands.includes(id);
       if(!f||(missed&&!retain)||distance(f.tip,tip,aspect)>config.jump){
-        this.crossing.reset(id);
+        this.resetSweep(id);
         if(f&&this.draft?.hands.includes(id)){this.draft=null;this.blocked=true;}
-        f={id,tip,anchor,closed:false,candidate:null,frames:0,t,closedAt:-Infinity,opened:false,lastAnchor:anchor,pending:false};
+        f={id,thumb,grip:null,played:new Map(),tip,anchor,closed:false,candidate:null,frames:0,t,closedAt:-Infinity,opened:false,lastAnchor:anchor,pending:false};
         this.fingers.set(id,f);
       }
       const change=f.closed?ratio>config.pinchOff:ratio<config.pinchOn;
       f.pending=ratio<config.pinchOn;
       if(!change)f.candidate=null;
       else if(f.candidate===null)f.candidate=t;
-      else if(t-f.candidate>=(f.closed?config.releaseMs:config.pinchMs)){
+      else if(t-f.candidate>=(f.closed
+        ? (ratio>.64?25:config.releaseMs)
+        : (ratio<.18?32:config.pinchMs))){
         f.closed=!f.closed;f.candidate=null;if(f.closed)f.closedAt=t;
       }
       if(ratio>config.pinchOff)f.opened=true;
-      f.tip=tip;f.anchor=anchor;f.t=t;f.frames++;
-      if(ratio<=config.pinchOff)f.lastAnchor=anchor;
+      if(ratio<=config.pinchOff){
+        const dt=Math.max(1,t-f.t),delta=distance(f.lastAnchor,anchor,aspect);
+        const tau=delta>.018?4:28,blend=1-Math.exp(-dt/tau);
+        f.lastAnchor=f.closed?{x:f.lastAnchor.x+(anchor.x-f.lastAnchor.x)*blend,
+          y:f.lastAnchor.y+(anchor.y-f.lastAnchor.y)*blend}:anchor;
+      }
+      f.thumb=thumb;f.tip=tip;f.anchor=anchor;f.t=t;f.frames++;
       active.push(f);
     }
     const ids=new Set(active.map(f=>f.id));
     for(const [id,f] of this.fingers)if(!ids.has(id)){
-      this.crossing.reset(id);f.opened=false;f.frames=0;
+      this.resetSweep(id);f.grip=null;f.candidate=null;f.opened=false;f.frames=0;
       if(t-f.t>config.lossMs)this.fingers.delete(id);
     }
     if(this.draft){
@@ -94,19 +139,18 @@ export class Gestures {
         const saved=unchanged || this.scene.commit(d.a,d.b,d.id);
         this.message=saved?'弦已固定，伸出食指撥奏':'弦太短或數量已滿';
         this.draft=null;this.blocked=true;this.crossing.reset();
+        for(const f of this.fingers.values())f.grip=null;
         if(saved && !d.id && fs.filter(f=>f.closed).length===1){
           const index=fs[0].closed?0:1;
           const wire=this.scene.data.strings[this.scene.data.strings.length-1];
           this.draft={id:wire.id,a:wire.a,b:wire.b,end:index===0?'a':'b',hands:[fs[index].id]};
-          this.message='一手拉弦，另一手用食指撥奏';
+          this.message='一手拉弦，另一手可用拇指或食指撥奏';
         }
       }else if(d.end && distance(d.a,d.b,aspect)>=0.02){
         const data={...this.scene.data,strings:this.scene.data.strings.map(w=>w.id===d.id?{...w,a:d.a,b:d.b}:w)};
         return active.flatMap(f=>{
-          if(f.id===d.hands[0]||f.closed||f.pending||!f.opened||f.frames<config.stableFrames){
-            this.crossing.reset(f.id);return [];
-          }
-          return this.crossing.sample(f.id,f.tip,t,data,d.id);
+          if(f.id===d.hands[0])return [];
+          return this.playFingers(f,t,data,d.id);
         }).sort((a,b)=>a.captureMs-b.captureMs);
       }
       return [];
@@ -122,16 +166,14 @@ export class Gestures {
       if(f.closedAt!==t)continue;
       const end=closestEnd(f.anchor,this.scene.data);
       if(end){const wire=this.scene.data.strings.find(w=>w.id===end.id)!;
-        this.draft={a:wire.a,b:wire.b,...end,hands:[f.id]};this.crossing.reset();this.message='一手拉弦，另一手用食指撥奏';return [];}
+        this.draft={a:wire.a,b:wire.b,...end,hands:[f.id]};this.crossing.reset();this.message='一手拉弦，另一手可用拇指或食指撥奏';return [];}
     }
-    if(held.length===2&&Math.abs(held[0].closedAt-held[1].closedAt)<=config.pairMs){
+    for(const f of held)if(f.closedAt===t)this.catchString(f,this.scene.data);
+    if(held.length===2&&held.every(f=>!f.grip)&&Math.abs(held[0].closedAt-held[1].closedAt)<=config.pairMs){
       if(this.scene.data.strings.length>=config.maxStrings){this.blocked=true;this.message='已達 8 弦上限';return [];}
       this.draft={a:held[0].anchor,b:held[1].anchor,hands:held.map(f=>f.id)};this.crossing.reset();this.message='拉開雙手，放開固定';return [];
     }
-    if(held.some(f=>t-f.closedAt>config.pairMs)){this.blocked=true;this.message='兩手放開，再一起捏合';return []}
-    return usable.flatMap(f=>{
-      if(f.pending||f.closed){this.crossing.reset(f.id);return [];}
-      return this.crossing.sample(f.id,f.tip,t,this.scene.data);
-    }).sort((a,b)=>a.captureMs-b.captureMs);
+    if(held.some(f=>!f.grip&&t-f.closedAt>config.pairMs))this.message='空白處建弦時，兩手分開指尖後再一起捏合';
+    return usable.flatMap(f=>this.playFingers(f,t,this.scene.data)).sort((a,b)=>a.captureMs-b.captureMs);
   }
 }

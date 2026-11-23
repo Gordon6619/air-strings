@@ -1,8 +1,8 @@
 // Generated from src/core.ts by npm run build.
-                                         
-                                                                    
-                                                                                                                                                
-                                                                                                                                                                             
+
+
+
+
 export const config = Object.freeze({
   version:1, maxStrings:8, maxVoices:16, minLength:0.18, endpointRadius:0.035,
   pinchOn:0.30, pinchOff:0.45, pinchMs:70, releaseMs:60, pairMs:300,
@@ -61,8 +61,8 @@ export class Scene {
     return true;
   }
 }
-                                           
-                                                                                                        
+
+
 export class Crossing {
   contacts=new Map                            (); seq=0;
   reset(hand        ){if(hand===undefined)this.contacts.clear();else this.contacts.delete(hand)}

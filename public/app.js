@@ -1,8 +1,8 @@
 import {Scene,Crossing,closestEnd,config,distance,projection,tone,clamp} from './core.js';
-import {Tracker,Gestures} from './gesture.js?v=light20';
+import {Tracker,Gestures} from './gesture.js?v=pinch2';
 import {Instrument} from './audio.js?v=canon57';
 import {Camera} from './camera.js';
-import {Resonance,HandOverlay,paintStageString,tensionColor,resonanceDurationMs} from './resonance.js?v=light20';
+import {Resonance,HandOverlay,paintStageString,tensionColor,resonanceDurationMs} from './resonance.js?v=pinch2';
 import {songs,Concert,paintConcert,introSeconds} from './concert.js?v=canon57';
 const $=id=>document.getElementById(id), canvas=$('canvas'), pen=canvas.getContext('2d');
 const scene=new Scene(),gestures=new Gestures(scene),mouseSweep=new Crossing(),audio=new Instrument();
@@ -121,7 +121,7 @@ const camera=new Camera($('video'),data=>{
   if(!del){
     const events=gestures.update(data.t,points);perform(events.map(e=>({...e,id:'hand:'+e.id})));
     if(points.length){stableAt??=data.t;
-      if(data.t-stableAt>=500)status(gestures.message==='請張開手掌進入取景框'?'雙手一起捏合，拉開做一條弦。':gestures.message);
+      if(data.t-stableAt>=500)status(gestures.message==='請張開手掌進入取景框'?'雙手各以拇指和食指捏合，再拉開建弦。':gestures.message);
     }else{stableAt=null;status('請將雙手張開，移入畫面。')}
   }
 },err=>stop(err),settings=>{
@@ -215,8 +215,12 @@ function drawFrame(now){
       const entry=overlay.hands.get(id),finger=gestures.fingers.get(id);
       if(!entry||!finger?.pending)return;
       const p=overlay.pose(entry,now),key=edit.end||(i===0?'a':'b');
-      edit[key]={x:clamp((p[4].x+p[8].x)/2),y:clamp((p[4].y+p[8].y)/2)};
+      edit[key]={x:clamp((p[4].x+p[8].x)/2+finger.lastAnchor.x-finger.anchor.x),y:clamp((p[4].y+p[8].y)/2+finger.lastAnchor.y-finger.anchor.y)};
     });
+  }
+  const grips=new Map();
+  if(mode==='camera')for(const f of gestures.fingers.values()){
+    if(f.grip)grips.set(f.grip.wire,{along:f.grip.along,offset:-f.grip.pull*Math.min(W,H)});
   }
   const newest=[...hits.strings.entries()].sort((a,b)=>b[1].at(-1).time-a[1].at(-1).time).slice(0,hits.strings.size>4||stats.frameP95Ms>23?1:3).map(([id])=>id);
   function draw(w,preview=false){
@@ -225,7 +229,7 @@ function drawFrame(now){
     const base=mode==='camera'||preview?tensionColor(length):color(w),note=tone(w.a,w.b,scene.data);
     pen.save();pen.strokeStyle=base;pen.fillStyle=base;pen.lineWidth=2.3*scale;
     if(preview&&!w.id&&distance(w.a,w.b,scene.data.aspect)<config.minLength)pen.setLineDash([5*scale,4*scale]);
-    paintStageString(pen,a,b,base,scale,w.id?hits.active(w.id,now):[],now,reducedMotion?.matches,newest.includes(w.id));
+    paintStageString(pen,a,b,base,scale,w.id?hits.active(w.id,now):[],now,reducedMotion?.matches,newest.includes(w.id),grips.get(w.id));
     pen.setLineDash([]);
     pen.lineWidth=scale;pen.globalAlpha=0.42;pen.beginPath();
     for(let i=1;mode!=='camera'&&i<12;i++){
@@ -235,17 +239,33 @@ function drawFrame(now){
     pen.stroke();pen.globalAlpha=1;
 
     pen.font=Math.max(11,14*scale)+'px monospace';const left=a.x<b.x?a:b;
-    if(mode!=='camera')pen.fillText(note.name+(note.limited?' · 限幅':''),clamp(left.x+8*scale,2,W-80*scale),Math.max(14*scale,left.y-10*scale));
+    if(mode==='camera'&&length>.08){
+      const label=note.name+' · '+Math.round(note.hz)+' Hz';
+      const x=clamp((a.x+b.x)/2,43*scale,W-43*scale),y=clamp((a.y+b.y)/2+18*scale,18*scale,H-6*scale);
+      pen.fillStyle='#132125b8';pen.fillRect(x-43*scale,y-13*scale,86*scale,17*scale);
+      pen.fillStyle='#fff6e0';pen.textAlign='center';pen.fillText(label,x,y);
+    }else if(mode!=='camera')pen.fillText(note.name+(note.limited?' · 限幅':''),clamp(left.x+8*scale,2,W-80*scale),Math.max(14*scale,left.y-10*scale));
     pen.restore();
   }
   for(const w of scene.data.strings)if(w.id!==edit?.id)draw(w);
   if(edit){draw({...edit,createdSeq:1},true);const n=tone(edit.a,edit.b,scene.data),old=scene.data.strings.find(w=>w.id===edit.id);
     $('pitch').textContent=(old?tone(old.a,old.b,scene.data).name+' → ':'')+n.name;$('hz').textContent=n.hz.toFixed(1)+' Hz';noteAt=now}
-  if(mode==='camera')for(const entry of overlay.hands.values()){
+  if(mode==='camera')for(const [id,entry] of overlay.hands){
     const hand={points:overlay.pose(entry,now)};
-    if($('bones').checked){pen.strokeStyle='#8dea65';pen.lineWidth=1.8*scale;for(const chain of joints){pen.beginPath();chain.forEach((idx,i)=>{const p=px(hand.points[idx]);if(i)pen.lineTo(p.x,p.y);else pen.moveTo(p.x,p.y)});pen.stroke()}
+    if($('bones').checked){pen.strokeStyle='#8dea6599';pen.lineWidth=1.3*scale;for(const chain of joints){pen.beginPath();chain.forEach((idx,i)=>{const p=px(hand.points[idx]);if(i)pen.lineTo(p.x,p.y);else pen.moveTo(p.x,p.y)});pen.stroke()}
       pen.fillStyle='#f15e55';pen.beginPath();for(const point of hand.points){const p=px(point),r=2.4*scale;pen.moveTo(p.x+r,p.y);pen.arc(p.x,p.y,r,0,2*Math.PI)}pen.fill();}
-    const p=px(hand.points[8]);pen.strokeStyle='#fff6d0';pen.beginPath();pen.arc(p.x,p.y,6*scale,0,2*Math.PI);pen.stroke();
+    const thumb=px(hand.points[4]),index=px(hand.points[8]),f=gestures.fingers.get(id);
+    pen.save();pen.lineWidth=1.8*scale;
+    if(f?.closed){
+      const x=(thumb.x+index.x)/2,y=(thumb.y+index.y)/2;
+      pen.strokeStyle='#ffe69b';pen.fillStyle='#ffcf6b55';pen.beginPath();
+      pen.arc(x,y,9*scale,0,2*Math.PI);pen.fill();pen.stroke();
+    }else{
+      for(const [p,tint] of [[thumb,'#80ffde'],[index,'#ffdf83']]){
+        pen.strokeStyle=tint;pen.beginPath();pen.arc(p.x,p.y,5.8*scale,0,2*Math.PI);pen.stroke();
+      }
+    }
+    pen.restore();
   }
 }
 function render(now){

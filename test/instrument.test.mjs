@@ -101,6 +101,38 @@ test('建立太短的弦、配對超時均不提交',()=>{
   frames(6,[['a',.2,.4,false],['b',.26,.4,false]]);assert.equal(s.data.strings.length,0);
   frames(25,[['a',.2,.4,true],['b',.7,.4,false]]);frames(6,[['a',.2,.4,true],['b',.7,.4,true]]);assert.equal(g.draft,null);
 });
+test('拇指能單獨掃弦，同一手兩指同時掃過只響一次',()=>{
+  const s=new Scene();s.load({...layout(),strings:[wire(.5)]});
+  for(const both of [false,true]){
+    const g=new Gestures(s),events=[];
+    for(let i=0;i<8;i++){
+      const y=i<6?.43:.55,points=palm(.5,both?y:.43);
+      points[4]=pt(.565,y);
+      events.push(...g.update(i*30,[{id:'hand',points}]));
+    }
+    assert.equal(events.length,1);
+    assert.equal(events[0].trackId,both?'hand':'hand:thumb');
+  }
+});
+test('兩指捏弦、施力、放手單次發音，不同取樣率和失追時都不多響',()=>{
+  for(const hz of [15,30,60])for(const action of ['pull','touch','loss']){
+    const s=new Scene();s.load({...layout(),strings:[wire(.5)]});
+    const g=new Gestures(s),events=[];let t=0;
+    function feed(ms,y,closed,visible=true){
+      for(let i=0;i<Math.ceil(ms*hz/1000);i++){
+        t+=1000/hz;events.push(...g.update(t,visible?[{id:'hand',points:palm(.5,y,closed)}]:[]));
+      }
+    }
+    feed(350,.50,false);feed(200,.50,true);
+    assert.equal(g.fingers.get('hand').grip.wire,s.data.strings[0].id);
+    const y=action==='touch'?.504:.57;
+    feed(200,y,true);assert.equal(events.length,0);
+    if(action==='loss')feed(320,y,true,false);
+    feed(240,y,false);
+    assert.equal(events.length,action==='pull'?1:0);
+    if(events.length){assert.ok(events[0].velocity01>.5);assert.match(events[0].id,/release/)}
+  }
+});
 test('雙手回報順序反轉時保留 ID，兩手重疊捨棄不確定位置',()=>{
   const t=new Tracker();const initial=t.match([palm(.2,.5),palm(.8,.5)],0,1);
   const next=t.match([palm(.78,.5),palm(.22,.5)],30,1);

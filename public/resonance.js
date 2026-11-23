@@ -83,7 +83,7 @@ function star(ctx,x,y,r,color){
   ctx.strokeStyle=color;ctx.lineWidth=Math.max(.65,r*.22);ctx.beginPath();
   ctx.moveTo(x-r,y);ctx.lineTo(x+r,y);ctx.moveTo(x,y-r);ctx.lineTo(x,y+r);ctx.stroke();
 }
-export function paintStageString(ctx,a,b,color,scale,strikes,now,reduced,detailed){
+export function paintStageString(ctx,a,b,color,scale,strikes,now,reduced,detailed,grip=null){
   const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
   if(len<.5)return;
   const nx=-dy/len,ny=dx/len;
@@ -93,11 +93,11 @@ export function paintStageString(ctx,a,b,color,scale,strikes,now,reduced,detaile
   });
   const energy=Math.min(1,waves.reduce((sum,w)=>sum+w.energy,0));
   ctx.save();ctx.lineCap='round';ctx.lineJoin='bevel';ctx.strokeStyle=color;
-  const count=energy>.025&&!reduced?clamp(Math.ceil(len/(14*scale)),12,detailed?42:18):1;
+  const count=grip?32:energy>.025&&!reduced?clamp(Math.ceil(len/(14*scale)),12,detailed?42:18):1;
   const heights=[];
   ctx.beginPath();
   for(let i=0;i<=count;i++){
-    const u=i/count;let h=0;
+    const u=i/count;let h=grip?grip.offset*(u<grip.along?u/grip.along:(1-u)/(1-grip.along)):0;
     if(i>0&&i<count)for(const w of waves){
       const wave=displacement(u,w.age,w.contact,w.rate*.70);
       h+=wave*w.direction*w.energy*Math.min(len*.20,43*scale);
@@ -109,7 +109,7 @@ export function paintStageString(ctx,a,b,color,scale,strikes,now,reduced,detaile
   if(detailed||!energy){ctx.globalAlpha=.12+.16*energy;ctx.lineWidth=(6+9*energy)*scale;ctx.stroke()}
   ctx.globalAlpha=.50+.28*energy;ctx.lineWidth=(2.7+2.4*energy)*scale;ctx.stroke();
   ctx.strokeStyle='#fffce8';ctx.globalAlpha=.82;ctx.lineWidth=(.85+.8*energy)*scale;ctx.stroke();
-  if(count>1&&detailed){
+  if(count>1&&detailed&&waves.length&&!reduced){
     // A weaker companion wave separates from the bright core and rejoins at both anchors.
     const w=waves[waves.length-1];ctx.strokeStyle=color;
     for(const sign of [-1,1]){
